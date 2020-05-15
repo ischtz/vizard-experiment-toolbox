@@ -65,20 +65,22 @@ class VzGazeRecorder():
 		gT = self._tracker.getMatrix() # gaze in tracker reference frame
 		cW = viz.MainView.getMatrix()  # camera in world reference frame 
 		gW = gT
-		gW.postMult(cW) 		   	   # gaze in world reference frame
+		gW.postMult(cW) 		   	   	# gaze in world reference frame
 		
-		# TODO: add code to log 3D intersection gaze point
-		# TODO: add valid flag to log 
-		#g3D = gW.getLineForward(1000)
-		#scene.intersect(line)		
+		gTpos = gT.getPosition()		# gaze-in-tracker: eye position
+		gTdir = gT.getForward()			# gaze-in-tracker: gaze unit vector (Z)
+		cWpos = cW.getPosition()		# camera-in-world: MainView position
+		cWdir = cW.getEuler()			# camera-in-world: MainView orientation
+		gWpos = gW.getPosition()		# gaze-in-world: eye position
+		gWdir = gW.getEuler()			# gaze-in-world: eye orientation
 		
-		gTpos = gT.getPosition()
-		gTdir = gT.getForward()
-		cWpos = cW.getPosition()
-		cWdir = cW.getForward()
-		gWpos = gW.getPosition()
-		gWdir = gW.getForward()
-		
+		# Find 3D gaze point through ray intersection method
+		g3D = [-1.0, -1.0, -1.0]
+		g3D_line = gW.getLineForward(1000)
+		g3D_test = viz.intersect(g3D_line.begin, g3D_line.end)
+		if g3D_test.valid:
+			g3D = g3D_test.point		# gaze-in-world: intersection point
+				
 		data = [viz.tick(),
 				viz.getFrameNumber(),
 				gTpos[0], gTpos[1], gTpos[1],
@@ -88,8 +90,8 @@ class VzGazeRecorder():
 				gWpos[0], gWpos[1], gWpos[1],
 				gWdir[0], gWdir[1], gWdir[1],
 				self._tracker.getPupilDiameter(),
-				-1, -1, -1]
 		self._samples.append(data)
+				g3D[0], g3D[1], g3D[2]]
 		
 		if console:
 			outformat = '{:.4f} {:d}\tcamXYZ=({:.3f}, {:.3f}, {:.3f}),\tcamDIR=({:.3f}, {:.3f}, {:.3f}),\tgazeXYZ=({:.3f}, {:.3f}, {:.3f}),\tgazeDIR=({:.3f}, {:.3f}, {:.3f}), p={:.3f}'
@@ -109,20 +111,22 @@ class VzGazeRecorder():
 	def startRecording(self):
 		""" Start recording of gaze samples and events """
 		if self._recorder is None:
-			self._recorder = vizact.onupdate(10, self.record_sample)
-		self._recorder.setEnabled(True)
-		self.recording = True
-		self.record_event('start_recording')
-		self._dlog('Recording started.')
+			self._recorder = vizact.onupdate(0, self.recordSample)
+		if not self.recording:
+			self._recorder.setEnabled(True)
+			self.recording = True
+			self.recordEvent('REC_START')
+			self._dlog('Recording started.')
 		
 		
 	def stopRecording(self):
 		""" Stop recording of gaze samples and events """
-		if self._recorder is not None:
-			self._recorder.setEnabled(False)
-		self.recording = False
-		self.record_event('stop_recording')
-		self._dlog('Recording stopped.')
+		if self.recording:
+			if self._recorder is not None:
+				self._recorder.setEnabled(False)
+			self.recording = False
+			self.recordEvent('REC_STOP')
+			self._dlog('Recording stopped.')
 		
 		
 	def saveRecording(self, sample_file=None, event_file=None, clear=True, sep='\t'):
@@ -131,25 +135,26 @@ class VzGazeRecorder():
 		
 		Args:
 			sample_file: Name of output file to write gaze samples to
-			event_file: Optional name of file to write event data to
+			event_file: Name of output file to write event data to
 			clear (bool): if True, clear current recording after saving
 			sep (str): Field separator in output file
 		"""
-		HEADER = sep.join(['tick', 'frame', 'eyeTx', 'eyeTy', 'eyeTz', 'gazeTx', 'gazeTy', 'gazeTz', 'camWx', 'camWy', 'camWy', 
-				  'viewWx', 'viewWx', 'viewWx', 'eyeWx', 'eyeWx', 'eyeWx', 'gazeWx', 'gazeWx', 'gazeWx', 
+		HEADER = sep.join(['tick', 'frame', 'gTposX', 'gTposY', 'gTposZ', 'gTdirX', 'gTdirY', 'gTdirZ', 'cWposX', 'cWposY', 'cWposZ',
+				  'cWdirX', 'cWdirY', 'cWdirZ', 'gWposX', 'gWposY', 'gWposZ', 'gWdirX', 'gWdirY', 'gWdirZ',
 				  'pDia', 'gaze3Dx', 'gaze3Dy', 'gaze3Dz']) + '\n'
 		ROW = sep.join(['{:.4f}', '{:d}'] + ['{:.10f}',] * 18 + ['{:.4f}'] + ['{:.10f}',] * 3) + '\n'
 		
 		EHEADER = sep.join(['tick', 'frame', 'event']) + '\n'
 		EROW = sep.join(['{:.4f}', '{:d}', '"{:s}"']) + '\n'
 		
-		n = 0
-		with open(sample_file, 'w') as of:
-			of.write(HEADER)
-			for row in self._samples:
-				of.write(ROW.format(*row))
-				n += 1
-		self._dlog('Saved {:d} samples to file: {:s}'.format(n, sample_file))
+		if sample_file is not None:
+			n = 0
+			with open(sample_file, 'w') as of:
+				of.write(HEADER)
+				for row in self._samples:
+					of.write(ROW.format(*row))
+					n += 1
+			self._dlog('Saved {:d} samples to file: {:s}'.format(n, sample_file))
 		
 		if event_file is not None:
 			n = 0
@@ -159,6 +164,11 @@ class VzGazeRecorder():
 					ef.write(EROW.format(*ev))
 					n += 1
 			self._dlog('Saved {:d} events to file: {:s}'.format(n, event_file))
+		
+		if sample_file is None and event_file is None:
+			self._dlog('Neither sample_file or event_file were specified. No data saved.')
+
+
 
 
 class Eyeball(viz.VizNode):
