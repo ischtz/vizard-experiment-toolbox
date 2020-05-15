@@ -55,7 +55,7 @@ class VzGazeRecorder():
 		return m
 		
 		
-	def record_sample(self, console=False):
+	def recordSample(self, console=False, is_val=False):
 		""" Record the current gaze sample
 		Can be called manually or e.g. in vizact.onupdate()
 		
@@ -96,7 +96,7 @@ class VzGazeRecorder():
 			print(outformat.format(*data[0:20]))
 		
 		
-	def record_event(self, event=''):
+	def recordEvent(self, event=''):
 		""" Record a time-stamped event string
 		
 		Args:
@@ -106,7 +106,7 @@ class VzGazeRecorder():
 		self._events.append(ev)
 
 		
-	def start_recording(self):
+	def startRecording(self):
 		""" Start recording of gaze samples and events """
 		if self._recorder is None:
 			self._recorder = vizact.onupdate(10, self.record_sample)
@@ -116,7 +116,7 @@ class VzGazeRecorder():
 		self._dlog('Recording started.')
 		
 		
-	def stop_recording(self):
+	def stopRecording(self):
 		""" Stop recording of gaze samples and events """
 		if self._recorder is not None:
 			self._recorder.setEnabled(False)
@@ -125,7 +125,7 @@ class VzGazeRecorder():
 		self._dlog('Recording stopped.')
 		
 		
-	def save_recording(self, sample_file='vzgaze.csv', event_file=None, clear=True, sep='\t'):
+	def saveRecording(self, sample_file=None, event_file=None, clear=True, sep='\t'):
 		""" Save current gaze recording to a tab-separated CSV file 
 		and clear the current recording by default.
 		
