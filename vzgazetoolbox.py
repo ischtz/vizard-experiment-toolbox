@@ -24,6 +24,7 @@ class VzGazeRecorder():
 		# Gaze data recording
 		self.recording = False
 		self._samples = []
+		self._val_samples = []
 		self._events = []
 		self._recorder = None
 		
@@ -53,6 +54,15 @@ class VzGazeRecorder():
 		"""
 		m = d * math.tan(math.radians(x))
 		return m
+
+
+	def _get_val_samples(self):
+		""" Retrieve and clear current validation data """
+		s = self._val_samples
+		self._val_samples = []
+		return s
+
+
 		
 		
 	def recordSample(self, console=False, is_val=False):
@@ -60,17 +70,21 @@ class VzGazeRecorder():
 		Can be called manually or e.g. in vizact.onupdate()
 		
 		Args:
-			console (bool): if True, print logged value to Vizard console 
-		"""
-		gT = self._tracker.getMatrix() # gaze in tracker reference frame
-		cW = viz.MainView.getMatrix()  # camera in world reference frame 
-		gW = gT
-		gW.postMult(cW) 		   	   	# gaze in world reference frame
-		
+			console (bool): if True, print logged value to Vizard console
+			is_val (bool): if True, record to validation dataset (internal use)
+		"""		
+		gT = self._tracker.getMatrix() 	# gaze in tracker reference frame
 		gTpos = gT.getPosition()		# gaze-in-tracker: eye position
-		gTdir = gT.getForward()			# gaze-in-tracker: gaze unit vector (Z)
+		gTdir = gT.getEuler()			# gaze-in-tracker: eye orientation
+		
+		cW = viz.MainView.getMatrix()  	# camera in world reference frame
 		cWpos = cW.getPosition()		# camera-in-world: MainView position
 		cWdir = cW.getEuler()			# camera-in-world: MainView orientation
+		
+		# Note that this assigns a reference to gW by default, so the gaze-in-tracker
+		# matrix is gone. If gT is necessary after this point, copy.deepcopy() in the future!
+		gW = gT
+		gW.postMult(cW) 		   	   	# gaze in world reference frame
 		gWpos = gW.getPosition()		# gaze-in-world: eye position
 		gWdir = gW.getEuler()			# gaze-in-world: eye orientation
 		
@@ -83,15 +97,19 @@ class VzGazeRecorder():
 				
 		data = [viz.tick(),
 				viz.getFrameNumber(),
-				gTpos[0], gTpos[1], gTpos[1],
-				gTdir[0], gTdir[1], gTdir[1],
-				cWpos[0], cWpos[1], cWpos[1],
-				cWdir[0], cWdir[1], cWdir[1],
-				gWpos[0], gWpos[1], gWpos[1],
-				gWdir[0], gWdir[1], gWdir[1],
+				gTpos[0], gTpos[1], gTpos[2],
+				gTdir[0], gTdir[1], gTdir[2],
+				cWpos[0], cWpos[1], cWpos[2],
+				cWdir[0], cWdir[1], cWdir[2],
+				gWpos[0], gWpos[1], gWpos[2],
+				gWdir[0], gWdir[1], gWdir[2],
 				self._tracker.getPupilDiameter(),
-		self._samples.append(data)
 				g3D[0], g3D[1], g3D[2]]
+		
+		if is_val:
+			self._val_samples.append(data)
+		else:
+			self._samples.append(data)
 		
 		if console:
 			outformat = '{:.4f} {:d}\tcamXYZ=({:.3f}, {:.3f}, {:.3f}),\tcamDIR=({:.3f}, {:.3f}, {:.3f}),\tgazeXYZ=({:.3f}, {:.3f}, {:.3f}),\tgazeDIR=({:.3f}, {:.3f}, {:.3f}), p={:.3f}'
