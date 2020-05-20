@@ -6,6 +6,8 @@ import viz
 import vizact
 import viztask
 import vizshape
+import vizmat
+import vizinfo
 
 
 class VzGazeRecorder():
@@ -186,6 +188,155 @@ class VzGazeRecorder():
 		if sample_file is None and event_file is None:
 			self._dlog('Neither sample_file or event_file were specified. No data saved.')
 
+
+
+class VzGazePlayer():
+	
+	def __init__(self, recording=None, ui=True, show_eye=True, show_gaze=False):
+		""" Eye movement replay class 
+		
+		Args:
+			recording: file name of a CSV recording file to load, OR
+				VzGazeRecorder instance to get sample data from
+			ui (bool): if True, show Vizard UI panel with recording status
+			show_eye (bool): if True, show Eyeball shape, else coordinate axes
+			show_gaze (bool): if True, plot a sphere at the recorded 3d gaze point
+
+		"""
+		# Visualization objects
+		self.gaze = vizshape.addSphere(radius=0.01, color=[1.0, 0.0, 0.0])
+		self.showGazeCursor(show_gaze)
+		if show_eye:
+			self.eye = Eyeball(visible=False, pointer=True)
+		else:
+			self.eye = vizshape.addAxes(scale=[0.2, 0.2, 0.2])
+		
+		self._frame = 0
+		self._samples = []
+		self._player = None
+		self.replaying = False
+		self.finished = False
+
+		# Load recording if specified
+		if recording is not None:
+			if type(recording) == 'str':
+				self.loadRecording(recording)
+			else:
+				self._samples = recorder._samples
+
+		# Set up status GUI if enabled
+		self._ui = None
+		if ui:
+			self._ui = vizinfo.InfoPanel('Gaze Data Replay', align=viz.ALIGN_RIGHT_TOP)
+			self._ui_bar = self._ui.addItem(viz.addProgressBar('0/0'))
+			self._set_ui()
+
+
+	def _set_ui(self):
+		""" Set GUI elements to display status (if enabled) """
+		if self._ui is not None:
+			if len(self._samples) == 0:
+				self._ui_bar.message('No data'.format(self._frame, len(self._samples)))
+			else:
+				self._ui_bar.set(float(self._frame)/float(len(self._samples)))
+				self._ui_bar.message('{:d}/{:d}'.format(self._frame, len(self._samples)))
+
+
+	def loadRecording(self, sample_file, sep='\t'):
+		""" Load a VzGazeRecorder samples file for replay
+		
+		Args:
+			sample_file (str): Filename of CSV file to load
+			sep (str): Field separator in CSV input file
+		"""
+		s = []
+		with open(sample_file, 'r') as sf:
+			lidx = 0
+			for line in sf.readlines():
+				if lidx == 0:
+					lidx += 1
+					continue # Skip header
+					
+				s.append([float(x) for x in line.split(sep)])
+				lidx +=1 
+			
+		self._samples = s
+		self._set_ui()
+		print('Loaded {:d} replay samples from "{:s}".'.format(lidx, sample_file))
+		
+
+	def startReplay(self, from_start=True):
+		""" Play the current recording frame by frame 
+		
+		Args:
+			from_start (bool): if True, start replay from first frame 
+		"""
+		if from_start or self._frame >= len(self._samples):
+			self._frame = 0
+		if self._player is None:
+			self._player = vizact.onupdate(0, self.replayCurrentFrame)
+		if not self.replaying:
+			self._player.setEnabled(True)
+			self.replaying = True
+			self.finished = False
+			self.eye.visible(True)
+			print('Replay started.')
+
+		
+	def stopReplay(self):
+		""" Stop an ongoing replay """
+		if self.replaying:
+			if self._player is not None:
+				self._player.setEnabled(False)
+			self.replaying = False
+			self.eye.visible(False)
+			print('Replay stopped at frame {:d}.'.format(self._frame))
+
+		
+	def replayCurrentFrame(self, advance=True):
+		""" Replay task. Sets up gaze position for each upcoming frame 
+		
+		Args:
+			advance (bool): if True, advance to next frame (default).
+		"""
+		f = self._samples[self._frame]
+
+		eye_pos = f[14:17] # gaze-in-world eye position
+		eye_dir = f[17:20] # gaze-in-world angles
+		gaze3d = f[21:24]  # gaze-in-workld intersection point
+		eye_mat = viz.Matrix()
+		eye_mat.setEuler([eye_dir[0], eye_dir[1], eye_dir[2]])
+		eye_mat.setScale(self.eye.getScale())
+		eye_mat.setPosition(eye_pos)
+		
+		self.eye.setMatrix(eye_mat)
+		self.gaze.setPosition(gaze3d)
+
+		self._set_ui()
+		if self._frame == 0 or self._frame == len(self._samples) or self._frame % 100 == 0:
+			print('Replaying frame {:d}/{:d}, t={:.2f}'.format(self._frame, len(self._samples), f[0]))
+		
+		if advance:
+			self._frame += 1
+		if self._frame >= len(self._samples):
+			# Reached last frame, stop replay and reset
+			self.replaying = False
+			self.finished = True
+			if self._player is not None:
+				self._player.setEnabled(False)
+			print('Replay finished.')
+
+
+	def replayDone(self):
+		""" Return True if replay is finished,
+			use as viztask.waitTrue(object.replayDone)
+		"""
+		return self.finished
+
+
+	def showGazeCursor(self, visible):
+		""" Set visibility of the gaze cursor object """
+		self.gaze.visible(visible)
 
 
 
