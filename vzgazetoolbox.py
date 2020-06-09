@@ -168,6 +168,7 @@ class VzGazeRecorder():
 		"""
 		
 		self._tracker = eyetracker
+		self._tracker_type = type(eyetracker).__name__
 		self.debug = DEBUG
 		
 		# Gaze data recording
@@ -273,6 +274,11 @@ class VzGazeRecorder():
 		if g3D_test.valid:
 			g3D = g3D_test.point		# gaze-in-world: intersection point
 				
+		# Pupil size measurement is tracker-specific
+		pupilDia = -1.0
+		if self._tracker_type == 'ViveProEyeTracker':
+			pupilDia = self._tracker.getPupilDiameter()
+		
 		data = [viz.tick(),
 				viz.getFrameNumber(),
 				gTpos[0], gTpos[1], gTpos[2],
@@ -281,7 +287,7 @@ class VzGazeRecorder():
 				cWdir[0], cWdir[1], cWdir[2],
 				gWpos[0], gWpos[1], gWpos[2],
 				gWdir[0], gWdir[1], gWdir[2],
-				self._tracker.getPupilDiameter(),
+				pupilDia,
 				g3D[0], g3D[1], g3D[2]]
 		
 		if is_val:
