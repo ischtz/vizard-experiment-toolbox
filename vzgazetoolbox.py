@@ -1,4 +1,4 @@
-
+import copy
 import math
 import random
 
@@ -159,28 +159,47 @@ VAL_TAR_SQ15 = [[0.0,  0.0,   6.0],
 
 class VzGazeRecorder():
 	
-	def __init__(self, eyetracker, DEBUG=False):
+	def __init__(self, eyetracker, DEBUG=False, missing_val=-99999.0, cursor=False):
 		""" Eye movement recording and accuracy/precision measurement class.
 
 		Args:
 			eyetracker: Vizard extension sensor object representing an eye tracker
 			DEBUG (bool): if True, print debug output to console
+			missing_val (float): Value to log for missing data
+			cursor (bool): if True, show cursor at current 3d gaze position
 		"""
 		
 		self._tracker = eyetracker
 		self._tracker_type = type(eyetracker).__name__
 		self.debug = DEBUG
 		
-		# Gaze data recording
+		# Additional tracked Vizard nodes
+		self._tracked_nodes = {}
+
+		# Value for missing data, since we can't use np.nan
+		self.MISSING = missing_val
+	
+		# Latest gaze data
+		self._gazedir = [self.MISSING, self.MISSING, self.MISSING] 
+		self._gaze3d = [self.MISSING, self.MISSING, self.MISSING]
+		self._gaze3d_intersect = None
+		self._gaze3d_last_valid = None
+
+		# Sample recording
 		self.recording = False
 		self._samples = []
 		self._val_samples = []
 		self._events = []
-		self._recorder = None
+		self._recorder = vizact.onupdate(viz.PRIORITY_LINKS+1, self._onUpdate)
 		
 		# Gaze validation
 		self._scene = viz.addScene()
 		self.fix_size = 0.5 # radius in degrees
+		
+		# Gaze cursor
+		self._cursor = vizshape.addSphere(radius=0.05, color=[1.0, 0.0, 0.0])
+		self._cursor.disable(viz.INTERSECTION)
+		self.showGazeCursor(cursor)
 		
 		
 	def _dlog(self, text):
@@ -213,6 +232,47 @@ class VzGazeRecorder():
 		return s
 		
 	
+	def addTrackedNode(self, node, label):
+		""" Specify a Vizard.Node3d whose position and orientation should be
+		logged alongside gaze data. Ensure the node is not deleted after
+		adding it to the recorder object!
+
+		Args:
+			node: any Vizard Node3D object
+			label (str): Label for this node in log files
+		"""
+		reserved = ['view', 'tracker', 'gaze', 'gaze3d', 'pupil'] + self._tracked_nodes.keys()
+		if label.lower() in reserved:
+			raise ValueError('Label "{:s}" already exists! Please choose a different label.'.format(label))
+		self._tracked_nodes[label] = node
+		self._dlog('Starting logging of node {:s} (ID: {:d}).'.format(label, node.id))
+
+
+	def getCurrentGaze(self):
+		""" Returns the current 3d gaze point if gaze intersects with the scene. """
+		return self._gaze3d
+
+
+	def getCurrentGazeMatrix(self):
+		""" Returns the current gaze direction transform matrix """
+		return self._gazedir
+
+
+	def getCurrentGazeTarget(self):
+		""" Returns the currently fixated node if a valid intersection is found """
+		return self._gaze3d_intersect
+
+
+	def getLastValidGazeTarget(self):
+		""" Returns the node that last received a valid gaze intersection """
+		return self._gaze3d_last_valid
+
+
+	def showGazeCursor(self, visible):
+		""" Set visibility of the gaze cursor node """
+		self._cursor.visible(visible)
+
+
 	def previewTargets(self, targets):
 		""" Preview a set of validation targets without actually validating 
 		
@@ -244,78 +304,132 @@ class VzGazeRecorder():
 
 		
 		
+		
+	def _onUpdate(self, console=False, is_val=False):
+		""" Task callback that runs on each display frame. Always updates 
+		current gaze data properties, triggers sample recording if recording is on.
+	
+		Args:
+			console (bool): if True, print logged value to Vizard console
+			is_val (bool): if True, record to validation dataset (internal use)
+		"""
+		# Update gaze direction transform
+		gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
+		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
+		gW = copy.deepcopy(gT)				# Gaze-in-World FoR
+		gW.postMult(cW)
+		self._gazedir = gW
+
+		# Find 3D gaze point and target through ray intersection
+		g3D_line = gW.getLineForward(1000)
+		g3D_test = viz.intersect(g3D_line.begin, g3D_line.end)
+		if g3D_test.valid:
+			self._gaze3d = g3D_test.point
+			self._gaze3d_intersect = g3D_test.object
+			self._gaze3d_last_valid = g3D_test.object
+			self._cursor.setPosition(g3D_test.point)
+		else:
+			self._gaze3d = [self.MISSING, self.MISSING, self.MISSING]
+			self._gaze3d_intersect = None
+
+		# Record sample if recording is enabled
+		if self.recording:
+			self.recordSample()
+
+
 	def recordSample(self, console=False, is_val=False):
-		""" Record the current gaze sample
-		Can be called manually or e.g. in vizact.onupdate()
+		""" Record transform matrices for head, gaze and tracked objects
+		for the current sample. Can be called manually or in vizact.onupdate().
 		
 		Args:
 			console (bool): if True, print logged value to Vizard console
 			is_val (bool): if True, record to validation dataset (internal use)
-		"""		
-		gT = self._tracker.getMatrix() 	# gaze in tracker reference frame
-		gTpos = gT.getPosition()		# gaze-in-tracker: eye position
-		gTdir = gT.getEuler()			# gaze-in-tracker: eye orientation
+		"""
+		s = {}
+
+		# Timing
+		s['time'] = viz.tick() * 1000
+		s['frameno'] = viz.getFrameNumber()
+
+		# Collect transforms of built-in tracked nodes
+		gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
+		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
+		gW = copy.deepcopy(gT)				# Gaze-in-World FoR
+		gW.postMult(cW)
+		nodes = {'tracker': gT,	
+				 'view':	cW,
+				 'gaze': 	gW}
+
+		# Add other (optional) tracked nodes
+		for obj in self._tracked_nodes.keys():
+			nodes[obj] = self._tracked_nodes[obj].getMatrix()
 		
-		cW = viz.MainView.getMatrix()  	# camera in world reference frame
-		cWpos = cW.getPosition()		# camera-in-world: MainView position
-		cWdir = cW.getEuler()			# camera-in-world: MainView orientation
-		
-		# Note that this assigns a reference to gW by default, so the gaze-in-tracker
-		# matrix is gone. If gT is necessary after this point, copy.deepcopy() in the future!
-		gW = gT
-		gW.postMult(cW) 		   	   	# gaze in world reference frame
-		gWpos = gW.getPosition()		# gaze-in-world: eye position
-		gWdir = gW.getEuler()			# gaze-in-world: eye orientation
-		
+		# Store position and orientation data
+		for lbl, node_matrix in nodes.iteritems():
+			p = node_matrix.getPosition()
+			d = node_matrix.getEuler()
+			q = node_matrix.getQuat()
+			s['{:s}_posX'.format(lbl)] = p[0]
+			s['{:s}_posY'.format(lbl)] = p[1]
+			s['{:s}_posZ'.format(lbl)] = p[2]
+			s['{:s}_dirX'.format(lbl)] = d[0]
+			s['{:s}_dirY'.format(lbl)] = d[1]
+			s['{:s}_dirZ'.format(lbl)] = d[2]
+			s['{:s}_quatX'.format(lbl)] = q[0]
+			s['{:s}_quatY'.format(lbl)] = q[1]
+			s['{:s}_quatZ'.format(lbl)] = q[2]
+			s['{:s}_quatW'.format(lbl)] = q[3]
+
 		# Find 3D gaze point through ray intersection method
-		g3D = [-1.0, -1.0, -1.0]
+		g3D = [self.MISSING, self.MISSING, self.MISSING]
 		g3D_line = gW.getLineForward(1000)
 		g3D_test = viz.intersect(g3D_line.begin, g3D_line.end)
+		s['gaze3d_valid'] = 0
+		s['gaze3d_object'] = ''
 		if g3D_test.valid:
-			g3D = g3D_test.point		# gaze-in-world: intersection point
-				
+			g3D = g3D_test.point
+			s['gaze3d_valid'] = 1
+			s['gaze3d_object'] = str(g3D_test.name)
+		s['gaze3d_posX'] = g3D[0]
+		s['gaze3d_posY'] = g3D[1]
+		s['gaze3d_posZ'] = g3D[2]
+
 		# Pupil size measurement is tracker-specific
-		pupilDia = -1.0
+		pupilDia = self.MISSING
 		if self._tracker_type == 'ViveProEyeTracker':
 			pupilDia = self._tracker.getPupilDiameter()
-		
-		data = [viz.tick(),
-				viz.getFrameNumber(),
-				gTpos[0], gTpos[1], gTpos[2],
-				gTdir[0], gTdir[1], gTdir[2],
-				cWpos[0], cWpos[1], cWpos[2],
-				cWdir[0], cWdir[1], cWdir[2],
-				gWpos[0], gWpos[1], gWpos[2],
-				gWdir[0], gWdir[1], gWdir[2],
-				pupilDia,
-				g3D[0], g3D[1], g3D[2]]
-		
+			s['pupil_size'] = pupilDia
+
 		if is_val:
-			self._val_samples.append(data)
+			self._val_samples.append(s)
 		else:
-			self._samples.append(data)
+			self._samples.append(s)
 		
 		if console:
-			outformat = '{:.4f} {:d}\tcamXYZ=({:.3f}, {:.3f}, {:.3f}),\tcamDIR=({:.3f}, {:.3f}, {:.3f}),\tgazeXYZ=({:.3f}, {:.3f}, {:.3f}),\tgazeDIR=({:.3f}, {:.3f}, {:.3f}), p={:.3f}'
-			print(outformat.format(*data[0:20]))
-		
-		
+			# Note: printing coordinates will likely slow down rendering! Use for debugging only.
+			cWp = cW.getPosition()
+			cWd = cW.getEuler()
+			gWp = gW.getPosition()
+			gWd = gW.getEuler()
+			outformat = '{:.4f} {:d}\tviewPOS=({:.3f}, {:.3f}, {:.3f}),\tviewDIR=({:.3f}, {:.3f}, {:.3f}),\tgazePOS=({:.3f}, {:.3f}, {:.3f}),\tgazeDIR=({:.3f}, {:.3f}, {:.3f}), p={:.3f}'
+			print(outformat.format(cWp[0], cWp[1], cWp[2], cWd[0], cWd[1], cWd[2], gWp[0], gWp[1], gWp[2], gWd[0], gWd[1], gWd[2], pupilDia))
+
+
 	def recordEvent(self, event=''):
-		""" Record a time-stamped event string
+		""" Record a time-stamped event string.
+		This always works regardless of sample recording status.
 		
 		Args:
 			event (str): event string to log
 		"""
-		ev = [viz.tick(), viz.getFrameNumber(), str(event)]
+		ev = {'time': viz.tick() * 1000,
+		 	  'message': str(event)}
 		self._events.append(ev)
 
-		
+
 	def startRecording(self):
 		""" Start recording of gaze samples and events """
-		if self._recorder is None:
-			self._recorder = vizact.onupdate(0, self.recordSample)
 		if not self.recording:
-			self._recorder.setEnabled(True)
 			self.recording = True
 			self.recordEvent('REC_START')
 			self._dlog('Recording started.')
@@ -324,14 +438,12 @@ class VzGazeRecorder():
 	def stopRecording(self):
 		""" Stop recording of gaze samples and events """
 		if self.recording:
-			if self._recorder is not None:
-				self._recorder.setEnabled(False)
 			self.recording = False
 			self.recordEvent('REC_STOP')
 			self._dlog('Recording stopped.')
 		
-		
-	def saveRecording(self, sample_file=None, event_file=None, clear=True, sep='\t'):
+
+	def saveRecording(self, sample_file=None, event_file=None, clear=True, sep='\t', quat=False):
 		""" Save current gaze recording to a tab-separated CSV file 
 		and clear the current recording by default.
 		
@@ -340,21 +452,44 @@ class VzGazeRecorder():
 			event_file: Name of output file to write event data to
 			clear (bool): if True, clear current recording after saving
 			sep (str): Field separator in output file
+			quat (bool): if True, also export rotation Quaternions
 		"""
-		HEADER = sep.join(['tick', 'frame', 'gTposX', 'gTposY', 'gTposZ', 'gTdirX', 'gTdirY', 'gTdirZ', 'cWposX', 'cWposY', 'cWposZ',
-				  'cWdirX', 'cWdirY', 'cWdirZ', 'gWposX', 'gWposY', 'gWposZ', 'gWdirX', 'gWdirY', 'gWdirZ',
-				  'pDia', 'gaze3Dx', 'gaze3Dy', 'gaze3Dz']) + '\n'
-		ROW = sep.join(['{:.4f}', '{:d}'] + ['{:.10f}',] * 18 + ['{:.4f}'] + ['{:.10f}',] * 3) + '\n'
+		# Samples: select keys to be exported and build file format
+		fields = ['time', 'view_posX', 'view_posY', 'view_posZ', 'view_dirX', 'view_dirY', 'view_dirZ',
+				  'gaze_posX', 'gaze_posY', 'gaze_posZ', 'gaze_dirX', 'gaze_dirY', 'gaze_dirZ',
+				  'gaze3d_valid', 'gaze3d_posX', 'gaze3d_posY', 'gaze3d_posZ', 'gaze3d_object']
+		fmt = ['{:.4f}'] + ['{:.5f}',] * 12 + ['{:d}',] + ['{:.5f}',] * 3 + ['"{:s}"',]
+
+		if 'pupil_size' in self._samples[0].keys():
+			fields += 'pupil_size'
+			fmt += ['{:.5f}',]
+		for lbl in self._tracked_nodes.keys():
+			fields += ['{:s}_posX'.format(lbl), '{:s}_posY'.format(lbl), '{:s}_posZ'.format(lbl), 
+					   '{:s}_dirX'.format(lbl), '{:s}_dirY'.format(lbl), '{:s}_dirZ'.format(lbl)]
+			fmt += ['{:.5f}',] * 6
+		if quat:
+			fields += ['view_quatX', 'view_quatY', 'view_quatZ', 'view_quatW',
+					   'gaze_quatX', 'gaze_quatY', 'gaze_quatZ', 'gaze_quatW']
+			fmt += ['{:.5f}',] * 8
+			for lbl in self._tracked_nodes.keys():
+				fields += ['{:s}_quatX'.format(lbl), '{:s}_quatY'.format(lbl), '{:s}_quatZ'.format(lbl), '{:s}_quatW'.format(lbl)]
+				fmt += ['{:.5f}',] * 4
+
+		HEADER = sep.join(fields) + '\n'
+		ROWFMT = sep.join(fmt) + '\n'
 		
-		EHEADER = sep.join(['tick', 'frame', 'event']) + '\n'
-		EROW = sep.join(['{:.4f}', '{:d}', '"{:s}"']) + '\n'
+		# Events: build header
+		evfields = ['time', 'message']
+		EHEADER = sep.join(evfields) + '\n'
+		EROWFMT = sep.join(['{:.4f}', '"{:s}"']) + '\n'
 		
 		if sample_file is not None:
 			n = 0
 			with open(sample_file, 'w') as of:
 				of.write(HEADER)
-				for row in self._samples:
-					of.write(ROW.format(*row))
+				for sample in self._samples:
+					row = [sample[f] for f in fields]
+					of.write(ROWFMT.format(*row))
 					n += 1
 			self._dlog('Saved {:d} samples to file: {:s}'.format(n, sample_file))
 		
@@ -362,13 +497,27 @@ class VzGazeRecorder():
 			n = 0
 			with open(event_file, 'w') as ef:
 				ef.write(EHEADER)
-				for ev in self._events:
-					ef.write(EROW.format(*ev))
+				for event in self._events:
+					ev = [event[f] for f in evfields]
+					ef.write(EROWFMT.format(*ev))
 					n += 1
 			self._dlog('Saved {:d} events to file: {:s}'.format(n, event_file))
-		
+
 		if sample_file is None and event_file is None:
 			self._dlog('Neither sample_file or event_file were specified. No data saved.')
+		else:
+			if clear:
+				self._samples = []
+				self._events = []
+				self._dlog('Cleared sample and event recording. Pass clear=False to keep.')
+
+
+	def clearRecording(self):
+		""" Stops recording and clears both samples and events """
+		self.recording = False
+		self._samples = []
+		self._events = []
+		self._dlog('Cleared sample and event recording.')
 
 
 
@@ -404,7 +553,7 @@ class VzGazePlayer():
 			if type(recording) == 'str':
 				self.loadRecording(recording)
 			else:
-				self._samples = recorder._samples
+				self._samples = recording._samples
 
 		# Set up status GUI if enabled
 		self._ui = None
@@ -418,7 +567,7 @@ class VzGazePlayer():
 		""" Set GUI elements to display status (if enabled) """
 		if self._ui is not None:
 			if len(self._samples) == 0:
-				self._ui_bar.message('No data'.format(self._frame, len(self._samples)))
+				self._ui_bar.message('No data')
 			else:
 				self._ui_bar.set(float(self._frame)/float(len(self._samples)))
 				self._ui_bar.message('{:d}/{:d}'.format(self._frame, len(self._samples)))
