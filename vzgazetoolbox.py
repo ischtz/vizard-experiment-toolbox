@@ -461,7 +461,7 @@ class VzGazeRecorder():
 		fmt = ['{:.4f}'] + ['{:.5f}',] * 12 + ['{:d}',] + ['{:.5f}',] * 3 + ['"{:s}"',]
 
 		if 'pupil_size' in self._samples[0].keys():
-			fields += 'pupil_size'
+			fields += ['pupil_size',]
 			fmt += ['{:.5f}',]
 		for lbl in self._tracked_nodes.keys():
 			fields += ['{:s}_posX'.format(lbl), '{:s}_posY'.format(lbl), '{:s}_posZ'.format(lbl), 
