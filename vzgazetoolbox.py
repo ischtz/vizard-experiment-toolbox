@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+ 
+import time
 import copy
 import math
 import random
@@ -797,11 +800,11 @@ def sd(x):
 def median(x):
 	""" Calculate sample Median without using numpy """
 	x = sorted(x)
-	if len(x) % 2 == 0:
-		m = int(len(x) / 2)
+	m = int(len(x) / 2)
+	if len(x) % 2 == 0:		
 		return (x[m] + x[m-1]) / 2.0
 	else:
-		return x[len(x)-1 / 2]
+		return x[m]
 
 
 def rmsi(x):
