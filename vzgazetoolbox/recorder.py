@@ -43,15 +43,17 @@ class VzGazeRecorder():
 		# Latest gaze data
 		self._gazedir = [self.MISSING, self.MISSING, self.MISSING] 
 		self._gaze3d = [self.MISSING, self.MISSING, self.MISSING]
+		self._gaze3d_valid = False
 		self._gaze3d_intersect = None
 		self._gaze3d_last_valid = None
 
 		# Sample recording
 		self.recording = False
+		self._force_update = False
 		self._samples = []
 		self._val_samples = []
 		self._events = []
-		self._recorder = vizact.onupdate(viz.PRIORITY_LINKS+1, self._onUpdate)
+		self._recorder = vizact.onupdate(viz.PRIORITY_PLUGINS+1, self._onUpdate)
 		
 		# Gaze validation
 		self._scene = viz.addScene()
@@ -109,7 +111,7 @@ class VzGazeRecorder():
 		self._dlog('Starting logging of node {:s} (ID: {:d}).'.format(label, node.id))
 
 
-	def getCurrentGaze(self):
+	def getCurrentGazePoint(self):
 		""" Returns the current 3d gaze point if gaze intersects with the scene. """
 		return self._gaze3d
 
@@ -258,19 +260,23 @@ class VzGazeRecorder():
 			# TODO: print validation results onto console and event log
 			# TODO: restrict samples used for averaging to last n samples
 			
-			# Average gaze angles and accuracy
+			# Gaze position and offset
 			d['avgX'] = mean(gazeX)
 			d['avgY'] = mean(gazeY)
 			d['medX'] = median(gazeX)
 			d['medY'] = median(gazeY)
+			d['offX'] = mean(deltaX)
+			d['offY'] = mean(deltaY)
+
+			# Accuracy 
 			d['acc'] = mean(delta)
-			d['accX'] = mean(deltaX)
-			d['accY'] = mean(deltaY)
+			d['accX'] = mean([abs(v) for v in deltaX])
+			d['accY'] = mean([abs(v) for v in deltaY])
 			d['medacc'] = median(delta)
-			d['medaccX'] = median(deltaX)
-			d['medaccY'] = median(deltaY)
+			d['medaccX'] = median([abs(v) for v in deltaX])
+			d['medaccY'] = median([abs(v) for v in deltaY])
 			
-			# Precision measures
+			# Precision
 			d['sd'] = sd(delta)
 			d['sdX'] = sd(deltaX)
 			d['sdY'] = sd(deltaY)
@@ -308,65 +314,89 @@ class VzGazeRecorder():
 		viztask.returnValue(rv)
 
 
-	def _onUpdate(self, console=False, is_val=False):
+	def _onUpdate(self, is_val=False):
 		""" Task callback that runs on each display frame. Always updates 
 		current gaze data properties, triggers sample recording if recording is on.
 	
 		Args:
-			console (bool): if True, print logged value to Vizard console
 			is_val (bool): if True, record to validation dataset (internal use)
 		"""
-		# Update gaze direction transform
+		if self._force_update:
+			viz.update(viz.UPDATE_PLUGINS | viz.UPDATE_LINKS)
+
+		time_ms = viz.tick() * 1000.0		# Vizard time
+		frame = viz.getFrameNumber()		# Vizard frame number
+		clock = time.clock() * 1000.0 		# Python system time
+
+		# Gaze and view nodes
 		gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
 		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
 		gW = copy.deepcopy(gT)				# Gaze-in-World FoR
 		gW.postMult(cW)
 		self._gazedir = gW
+		nodes = {'tracker': gT,
+				 'view':	cW,
+				 'gaze': 	gW}
 
-		# Find 3D gaze point and target through ray intersection
+		# Additional tracked nodes
+		for obj in self._tracked_nodes.keys():
+			nodes[obj] = self._tracked_nodes[obj].getMatrix()
+
+		# Update current gaze information and cursor position
 		g3D_line = gW.getLineForward(1000)
 		g3D_test = viz.intersect(g3D_line.begin, g3D_line.end)
 		if g3D_test.valid:
 			self._gaze3d = g3D_test.point
+			self._gaze3d_valid = True
 			self._gaze3d_intersect = g3D_test.object
 			self._gaze3d_last_valid = g3D_test.object
 			self._cursor.setPosition(g3D_test.point)
 		else:
 			self._gaze3d = [self.MISSING, self.MISSING, self.MISSING]
+			self._gaze3d_valid = False
 			self._gaze3d_intersect = None
 
-		# Record sample if recording is enabled
+		# Record sample if enabled
 		if self.recording:
-			self.recordSample()
+			sample = ((time_ms, frame, clock), nodes)
+			self.recordSample(is_val=is_val, sample=sample)
 
 
-	def recordSample(self, console=False, is_val=False):
-		""" Record transform matrices for head, gaze and tracked objects
-		for the current sample. Can be called manually or in vizact.onupdate().
+	def recordSample(self, console=False, is_val=False, sample=None):
+		""" Records transform matrices for head, gaze and tracked objects for the
+		current sample. Can also be called manually to record a single frame.
 		
 		Args:
 			console (bool): if True, print logged value to Vizard console
 			is_val (bool): if True, record to validation dataset (internal use)
+			sample: sample data, if called via _onUpdate (internal use)
 		"""
 		s = {}
 
-		# Timing
-		s['time'] = viz.tick() * 1000
-		s['frameno'] = viz.getFrameNumber()
+		if sample is not None:
+			# Store sample data coming from update callback
+			(timing, nodes) = sample
+			s['time'] = timing[0]
+			s['frameno'] = timing[1]
+			s['systime'] = timing[2]
 
-		# Collect transforms of built-in tracked nodes
-		gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
-		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
-		gW = copy.deepcopy(gT)				# Gaze-in-World FoR
-		gW.postMult(cW)
-		nodes = {'tracker': gT,	
-				 'view':	cW,
-				 'gaze': 	gW}
+		else:
+			# Record a sample manually 
+			s['time'] = viz.tick() * 1000.0
+			s['frameno'] = viz.getFrameNumber()
+			s['systime'] = time.clock() * 1000.0
 
-		# Add other (optional) tracked nodes
-		for obj in self._tracked_nodes.keys():
-			nodes[obj] = self._tracked_nodes[obj].getMatrix()
-		
+			gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
+			cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
+			gW = copy.deepcopy(gT)				# Gaze-in-World FoR
+			gW.postMult(cW)
+			nodes = {'tracker': gT,	
+					 'view':	cW,
+					 'gaze': 	gW}
+
+			for obj in self._tracked_nodes.keys():
+				nodes[obj] = self._tracked_nodes[obj].getMatrix()
+
 		# Store position and orientation data
 		for lbl, node_matrix in nodes.iteritems():
 			p = node_matrix.getPosition()
@@ -383,21 +413,18 @@ class VzGazeRecorder():
 			s['{:s}_quatZ'.format(lbl)] = q[2]
 			s['{:s}_quatW'.format(lbl)] = q[3]
 
-		# Find 3D gaze point through ray intersection method
-		g3D = [self.MISSING, self.MISSING, self.MISSING]
-		g3D_line = gW.getLineForward(1000)
-		g3D_test = viz.intersect(g3D_line.begin, g3D_line.end)
-		s['gaze3d_valid'] = 0
-		s['gaze3d_object'] = ''
-		if g3D_test.valid:
-			g3D = g3D_test.point
+		# Store 3D gaze point data
+		s['gaze3d_posX'] = self._gaze3d[0]
+		s['gaze3d_posY'] = self._gaze3d[0]
+		s['gaze3d_posZ'] = self._gaze3d[0]
+		if self._gaze3d_valid:
 			s['gaze3d_valid'] = 1
-			s['gaze3d_object'] = str(g3D_test.name)
-		s['gaze3d_posX'] = g3D[0]
-		s['gaze3d_posY'] = g3D[1]
-		s['gaze3d_posZ'] = g3D[2]
+			s['gaze3d_object'] = str(self._gaze3d_intersect)
+		else:
+			s['gaze3d_valid'] = 0
+			s['gaze3d_object'] = ''
 
-		# Pupil size measurement is tracker-specific
+		# Pupil size measurement (tracker-specific)
 		pupilDia = self.MISSING
 		if self._tracker_type == 'ViveProEyeTracker':
 			pupilDia = self._tracker.getPupilDiameter()
@@ -430,12 +457,20 @@ class VzGazeRecorder():
 		self._events.append(ev)
 
 
-	def startRecording(self):
-		""" Start recording of gaze samples and events """
+	def startRecording(self, force_update=False):
+		""" Start recording of gaze samples and events 
+		
+		Args:
+			force_update (bool): it True, force Vizard to update sensor data
+		"""
 		if not self.recording:
+			self._force_update = force_update
 			self.recording = True
 			self.recordEvent('REC_START')
-			self._dlog('Recording started.')
+			if force_update:
+				self._dlog('Recording started (forcing Vizard updates is on!)')
+			else:
+				self._dlog('Recording started.')
 		
 		
 	def stopRecording(self):
@@ -444,6 +479,7 @@ class VzGazeRecorder():
 			self.recording = False
 			self.recordEvent('REC_STOP')
 			self._dlog('Recording stopped.')
+			self._force_update = False
 		
 
 	def saveRecording(self, sample_file=None, event_file=None, clear=True, sep='\t', quat=False):
@@ -458,10 +494,10 @@ class VzGazeRecorder():
 			quat (bool): if True, also export rotation Quaternions
 		"""
 		# Samples: select keys to be exported and build file format
-		fields = ['time', 'view_posX', 'view_posY', 'view_posZ', 'view_dirX', 'view_dirY', 'view_dirZ',
+		fields = ['time', 'systime', 'view_posX', 'view_posY', 'view_posZ', 'view_dirX', 'view_dirY', 'view_dirZ',
 				  'gaze_posX', 'gaze_posY', 'gaze_posZ', 'gaze_dirX', 'gaze_dirY', 'gaze_dirZ',
 				  'gaze3d_valid', 'gaze3d_posX', 'gaze3d_posY', 'gaze3d_posZ', 'gaze3d_object']
-		fmt = ['{:.4f}'] + ['{:.5f}',] * 12 + ['{:d}',] + ['{:.5f}',] * 3 + ['"{:s}"',]
+		fmt = ['{:.4f}', '{:.4f}'] + ['{:.5f}',] * 12 + ['{:d}',] + ['{:.5f}',] * 3 + ['"{:s}"',]
 
 		if 'pupil_size' in self._samples[0].keys():
 			fields += ['pupil_size',]
