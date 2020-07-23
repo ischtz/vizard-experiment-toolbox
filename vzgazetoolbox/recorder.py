@@ -25,7 +25,7 @@ class VzGazeRecorder():
 
 		Args:
 			eyetracker: Vizard extension sensor object representing an eye tracker
-			DEBUG (bool): if True, print debug output to console
+			DEBUG (bool): if True, print debug output to console and store extra fields
 			missing_val (float): Value to log for missing data
 			cursor (bool): if True, show cursor at current 3d gaze position
 		"""
@@ -424,11 +424,14 @@ class VzGazeRecorder():
 			s['gaze3d_valid'] = 0
 			s['gaze3d_object'] = ''
 
-		# Pupil size measurement (tracker-specific)
-		pupilDia = self.MISSING
+		# Device-specific eye tracking data
 		if self._tracker_type == 'ViveProEyeTracker':
-			pupilDia = self._tracker.getPupilDiameter()
-			s['pupil_size'] = pupilDia
+			s['pupil_size'] = self._tracker.getPupilDiameter(viz.BOTH_EYE)
+			s['pupil_sizeL'] = self._tracker.getPupilDiameter(viz.LEFT_EYE)
+			s['pupil_sizeR'] = self._tracker.getPupilDiameter(viz.RIGHT_EYE)
+			s['eye_state'] = self._tracker.getEyeOpen(viz.BOTH_EYE)
+			s['eye_stateL'] = self._tracker.getEyeOpen(viz.LEFT_EYE)
+			s['eye_stateR'] = self._tracker.getEyeOpen(viz.RIGHT_EYE)
 
 		if is_val:
 			self._val_samples.append(s)
@@ -499,19 +502,33 @@ class VzGazeRecorder():
 				  'gaze3d_valid', 'gaze3d_posX', 'gaze3d_posY', 'gaze3d_posZ', 'gaze3d_object']
 		fmt = ['{:.4f}', '{:.4f}'] + ['{:.5f}',] * 12 + ['{:d}',] + ['{:.5f}',] * 3 + ['"{:s}"',]
 
-		if 'pupil_size' in self._samples[0].keys():
-			fields += ['pupil_size',]
-			fmt += ['{:.5f}',]
+		# Tracker-specific fields (not always available)
+		special = ['pupil_size', 'pupil_sizeL', 'pupil_sizeR', 'eye_state', 'eye_stateL', 'eye_stateR']
+		for field in special:
+			if field in self._samples[0].keys():
+				fields += [field,]
+				fmt += ['{:.5f}',]
+
+		# Additional tracked nodes
 		for lbl in self._tracked_nodes.keys():
 			fields += ['{:s}_posX'.format(lbl), '{:s}_posY'.format(lbl), '{:s}_posZ'.format(lbl), 
 					   '{:s}_dirX'.format(lbl), '{:s}_dirY'.format(lbl), '{:s}_dirZ'.format(lbl)]
 			fmt += ['{:.5f}',] * 6
+		
+		# Quaternions (optional)
 		if quat:
 			fields += ['view_quatX', 'view_quatY', 'view_quatZ', 'view_quatW',
 					   'gaze_quatX', 'gaze_quatY', 'gaze_quatZ', 'gaze_quatW']
 			fmt += ['{:.5f}',] * 8
 			for lbl in self._tracked_nodes.keys():
 				fields += ['{:s}_quatX'.format(lbl), '{:s}_quatY'.format(lbl), '{:s}_quatZ'.format(lbl), '{:s}_quatW'.format(lbl)]
+				fmt += ['{:.5f}',] * 4
+		
+		if self.debug:
+			fields += ['tracker_posX', 'tracker_posY', 'tracker_posZ', 'tracker_dirX', 'tracker_dirY', 'tracker_dirZ']
+			fmt += ['{:.5f}',] * 6
+			if quat:
+				fields += ['tracker_quatX', 'tracker_quatY', 'tracker_quatZ', 'tracker_quatW']
 				fmt += ['{:.5f}',] * 4
 
 		HEADER = sep.join(fields) + '\n'
