@@ -485,14 +485,16 @@ class VzGazeRecorder():
 			self._force_update = False
 		
 
-	def saveRecording(self, sample_file=None, event_file=None, clear=True, sep='\t', quat=False):
+	def saveRecording(self, sample_file=None, event_file=None, clear_samples=True, clear_events=True, 
+					  sep='\t', quat=False):
 		""" Save current gaze recording to a tab-separated CSV file 
 		and clear the current recording by default.
 		
 		Args:
 			sample_file: Name of output file to write gaze samples to
 			event_file: Name of output file to write event data to
-			clear (bool): if True, clear current recording after saving
+			clear_samples (bool): if True, clear recorded samples after saving
+			clear_events (bool): if True, clear recorded events after saving
 			sep (str): Field separator in output file
 			quat (bool): if True, also export rotation Quaternions
 		"""
@@ -560,18 +562,26 @@ class VzGazeRecorder():
 			self._dlog('Saved {:d} events to file: {:s}'.format(n, event_file))
 
 		if sample_file is None and event_file is None:
-			self._dlog('Neither sample_file or event_file were specified. No data saved.')
+			self._dlog('Neither sample_file nor event_file were specified. No data saved.')
 		else:
-			if clear:
-				self._samples = []
-				self._events = []
-				self._dlog('Cleared sample and event recording. Pass clear=False to keep.')
+			if clear_samples or clear_events:
+				self.clearRecording(samples=clear_samples, events=clear_events)
 
 
-	def clearRecording(self):
-		""" Stops recording and clears both samples and events """
+	def clearRecording(self, samples=True, events=True):
+		""" Stops recording and clears both samples and events 
+		
+		Args:
+			samples (bool): if True, clear sample data
+			events (bool): if True, clear event data
+		"""
 		self.recording = False
-		self._samples = []
-		self._events = []
-		self._dlog('Cleared sample and event recording.')
+		dtypes = []
+		if samples:
+			self._samples = []
+			dtypes.append('samples')
+		if events:
+			self._events = []
+			dtypes.append('events')
+		self._dlog('Cleared recording data ({:s})'.format(str(dtypes)))
 
