@@ -31,7 +31,11 @@ class VzGazeRecorder():
 		"""
 		
 		self._tracker = eyetracker
+		self._tracker_has_eye_flag = False
 		self._tracker_type = type(eyetracker).__name__
+		if self._tracker_type in ['ViveProEyeTracker']:
+			# Trackers supporting monocular data via the sensor flag parameter
+			self._tracker_has_eye_flag = True
 		self.debug = DEBUG
 		
 		# Additional tracked Vizard nodes
@@ -329,8 +333,8 @@ class VzGazeRecorder():
 		clock = time.clock() * 1000.0 		# Python system time
 
 		# Gaze and view nodes
-		gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
 		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
+		gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
 		gW = copy.deepcopy(gT)				# Gaze-in-World FoR
 		gW.postMult(cW)
 		self._gazedir = gW
@@ -338,6 +342,19 @@ class VzGazeRecorder():
 				 'view':	cW,
 				 'gaze': 	gW}
 
+		# Monocular data, if available
+		if self._tracker_has_eye_flag:
+			gTL = self._tracker.getMatrix(flag=viz.LEFT_EYE)
+			gTR = self._tracker.getMatrix(flag=viz.RIGHT_EYE)
+			gWL = copy.deepcopy(gTL)
+			gWR = copy.deepcopy(gTR)
+			gWL.postMult(cW)
+			gWR.postMult(cW)
+			nodes['trackerL'] = gTL
+			nodes['trackerR'] = gTR
+			nodes['gazeL'] = gWL
+			nodes['gazeR'] = gWR
+		
 		# Additional tracked nodes
 		for obj in self._tracked_nodes.keys():
 			nodes[obj] = self._tracked_nodes[obj].getMatrix()
@@ -394,6 +411,18 @@ class VzGazeRecorder():
 					 'view':	cW,
 					 'gaze': 	gW}
 
+			if self._tracker_has_eye_flag:
+				gTL = self._tracker.getMatrix(flag=viz.LEFT_EYE)
+				gTR = self._tracker.getMatrix(flag=viz.RIGHT_EYE)
+				gWL = copy.deepcopy(gTL)
+				gWR = copy.deepcopy(gTR)
+				gWL.postMult(cW)
+				gWR.postMult(cW)
+				nodes['trackerL'] = gTL
+				nodes['trackerR'] = gTR
+				nodes['gazeL'] = gWL
+				nodes['gazeR'] = gWR
+			
 			for obj in self._tracked_nodes.keys():
 				nodes[obj] = self._tracked_nodes[obj].getMatrix()
 
@@ -444,6 +473,9 @@ class VzGazeRecorder():
 			cWd = cW.getEuler()
 			gWp = gW.getPosition()
 			gWd = gW.getEuler()
+			pupilDia = self.MISSING
+			if 'pupil_size' in s.keys():
+				pupilDia = s['pupil_size']
 			outformat = '{:.4f} {:d}\tviewPOS=({:.3f}, {:.3f}, {:.3f}),\tviewDIR=({:.3f}, {:.3f}, {:.3f}),\tgazePOS=({:.3f}, {:.3f}, {:.3f}),\tgazeDIR=({:.3f}, {:.3f}, {:.3f}), p={:.3f}'
 			print(outformat.format(cWp[0], cWp[1], cWp[2], cWd[0], cWd[1], cWd[2], gWp[0], gWp[1], gWp[2], gWd[0], gWd[1], gWd[2], pupilDia))
 
@@ -505,7 +537,9 @@ class VzGazeRecorder():
 		fmt = ['{:.4f}', '{:.4f}'] + ['{:.5f}',] * 12 + ['{:d}',] + ['{:.5f}',] * 3 + ['"{:s}"',]
 
 		# Tracker-specific fields (not always available)
-		special = ['pupil_size', 'pupil_sizeL', 'pupil_sizeR', 'eye_state', 'eye_stateL', 'eye_stateR']
+		special = ['gazeL_posX', 'gazeL_posY', 'gazeL_posZ', 'gazeL_dirX', 'gazeL_dirY', 'gazeL_dirZ',
+				   'gazeR_posX', 'gazeR_posY', 'gazeR_posZ', 'gazeR_dirX', 'gazeR_dirY', 'gazeR_dirZ',
+				   'pupil_size', 'pupil_sizeL', 'pupil_sizeR', 'eye_state', 'eye_stateL', 'eye_stateR']
 		for field in special:
 			if field in self._samples[0].keys():
 				fields += [field,]
@@ -529,9 +563,19 @@ class VzGazeRecorder():
 		if self.debug:
 			fields += ['tracker_posX', 'tracker_posY', 'tracker_posZ', 'tracker_dirX', 'tracker_dirY', 'tracker_dirZ']
 			fmt += ['{:.5f}',] * 6
+			if self._tracker_has_eye_flag:
+				fields += ['trackerL_posX', 'trackerL_posY', 'trackerL_posZ', 'trackerL_dirX', 'trackerL_dirY', 'trackerL_dirZ',
+						   'trackerR_posX', 'trackerR_posY', 'trackerR_posZ', 'trackerR_dirX', 'trackerR_dirY', 'trackerR_dirZ']
+				fmt += ['{:.5f}',] * 12
+
 			if quat:
 				fields += ['tracker_quatX', 'tracker_quatY', 'tracker_quatZ', 'tracker_quatW']
 				fmt += ['{:.5f}',] * 4
+				if self._tracker_has_eye_flag:
+					fields += ['trackerL_quatX', 'trackerL_quatY', 'trackerL_quatZ', 'trackerL_quatW',
+							   'trackerR_quatX', 'trackerR_quatY', 'trackerR_quatZ', 'trackerR_quatW']
+					fmt += ['{:.5f}',] * 8
+
 
 		HEADER = sep.join(fields) + '\n'
 		ROWFMT = sep.join(fmt) + '\n'
