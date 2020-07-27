@@ -140,6 +140,39 @@ class VzGazeRecorder():
 		self._cursor.visible(visible)
 
 
+	def measureIPD(self, sample_dur=1000.0):
+		""" Measure Inter-Pupillary Distance (IPD) of the HMD wearer
+		
+		Args:
+			sample_dur (float): sampling duration in ms
+
+		Returns:
+			IPD as a single float value, in mm 
+		"""
+		if not self._tracker_has_eye_flag:
+			err = 'measureIPD() requires monocular gaze data, which is not available for the current eye tracker ({:s})'
+			raise NotImplementedError(err.format(self._tracker_type))
+
+		# Sample gaze data using the validation recorder
+		val_recorder = vizact.onupdate(-1, self.recordSample, is_val=True)
+		self._val_samples = [] # task starts out enabled, so might have recorded a stray sample
+		yield viztask.waitTime(float(sample_dur) / 1000)
+		val_recorder.setEnabled(False)
+		s = self._get_val_samples()
+		val_recorder.setEnabled(False)
+		val_recorder.remove()
+		
+		# Calculate average IPD
+		ipdval = []
+		for sam in s:
+			dX = abs(sam['trackerR_posX'] - sam['trackerL_posX'])
+			ipdval.append(dX)
+
+		ipd = mean(ipdval) * 1000.0
+		self._dlog('measureIPD(): Mean IPD is {:.1f} mm'.format(ipd))
+		viztask.returnValue(ipd)
+
+
 	def previewTargets(self, targets):
 		""" Preview a set of validation targets without actually validating 
 		
@@ -241,6 +274,7 @@ class VzGazeRecorder():
 			deltaY = []
 			gazeX = []
 			gazeY = []
+			ipdV = []
 			
 			d['set_no'] = c
 			d['x'] =  tarpos[0]
@@ -260,6 +294,9 @@ class VzGazeRecorder():
 				delta.append(dAbs)
 				deltaX.append(dX)
 				deltaY.append(dY)
+
+				if self._tracker_has_eye_flag:
+					ipdV.append(abs(sam['trackerR_posX'] - sam['trackerL_posX']) * 1000.0)
 
 			# TODO: print validation results onto console and event log
 			# TODO: restrict samples used for averaging to last n samples
@@ -287,6 +324,10 @@ class VzGazeRecorder():
 			d['rmsi'] = rmsi(delta)
 			d['rmsiX'] = rmsi(deltaX)
 			d['rmsiY'] = rmsi(deltaY)
+
+			# Inter-Pupillary Distance
+			if self._tracker_has_eye_flag:
+				d['ipd'] = mean(ipdV)
 
 			tar_data.append(d)
 			sam_data.append(s)

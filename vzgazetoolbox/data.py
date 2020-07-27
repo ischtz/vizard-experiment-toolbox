@@ -179,7 +179,7 @@ class ValidationResult():
 		self.label = label
 
 		# Global average accuracy, precision, etc. 
-		vars = ['acc', 'accX', 'accY', 'sd', 'sdX', 'sdY',  'rmsi', 'rmsiX', 'rmsiY']
+		vars = ['acc', 'accX', 'accY', 'sd', 'sdX', 'sdY',  'rmsi', 'rmsiX', 'rmsiY', 'ipd']
 		for v in vars:
 			setattr(self, v, -99999.0)
 			if result is not None and v in result.keys():
