@@ -21,7 +21,7 @@ from .eyeball import Eyeball
 class VzGazeRecorder():
 	
 	def __init__(self, eyetracker, DEBUG=False, missing_val=-99999.0, cursor=False,
-				 key_preview='p', key_validate='v', targets=VAL_TAR_CR10):
+				 key_calibrate='c', key_preview='p', key_validate='v', targets=VAL_TAR_CR10):
 		""" Eye movement recording and accuracy/precision measurement class.
 
 		Args:
@@ -29,6 +29,7 @@ class VzGazeRecorder():
 			DEBUG (bool): if True, print debug output to console and store extra fields
 			missing_val (float): Value to log for missing data
 			cursor (bool): if True, show cursor at current 3d gaze position
+			key_calibrate (str): Vizard key code that should trigger eye tracker calibration
 			key_preview (str): Vizard key code that should trigger target preview
 			key_validate (str): Vizard key code that should trigger gaze validation
 			targets: default validation target set to use (see validate())
@@ -75,6 +76,9 @@ class VzGazeRecorder():
 		self.showGazeCursor(cursor)
 
 		# Register task callbacks for interactive keys
+		if key_calibrate is not None:
+			self._cal_callback = vizact.onkeydown(key_calibrate, viztask.schedule, self.calibrate)
+			self._dlog('Key callback registered: Calibration ({:s}).'.format(key_calibrate))
 		if key_validate is not None:
 			self._val_callback = vizact.onkeydown(key_validate, viztask.schedule, self.validate)
 			self._dlog('Key callback registered: Validation ({:s}).'.format(key_validate))
@@ -222,6 +226,13 @@ class VzGazeRecorder():
 		viz.MainWindow.setScene(prev_scene)
 		self._dlog('Original scene returned')
 
+
+	def calibrate(self):
+		""" Calibrates the eye tracker via its calibrate() method """
+		self._dlog('Starting eye tracker calibration.')
+		yield self._tracker.calibrate()
+		self._dlog('Eye tracker calibration finished.')
+	
 
 	def validate(self, targets=None, dur=2000, tar_color=[1.0, 1.0, 1.0], randomize=True):
 		""" Measure gaze accuracy and precision for a set of head-locked targets
