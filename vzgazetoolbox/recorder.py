@@ -67,6 +67,7 @@ class VzGazeRecorder():
 		# Gaze validation
 		self._scene = viz.addScene()
 		self.fix_size = 0.5 # radius in degrees
+		self.tar_plane_color = [0.3, 0.3, 0.3]
 		self._last_val_result = None
 		self._default_targets = targets
 		
@@ -209,6 +210,7 @@ class VzGazeRecorder():
 		viz.MainWindow.setScene(self._scene)
 
 		tar_obj = []
+		t_dist = []
 		for tgt in targets:	
 			t = vizshape.addSphere(radius=self._deg2m(self.fix_size, tgt[2]), scene=self._scene, color=[1.0, 1.0, 1.0])
 			if tgt[0] == 0.0 and tgt[1] == 0.0:
@@ -216,13 +218,21 @@ class VzGazeRecorder():
 				t.color([1.0, 0.0, 0.0])
 			t_link = viz.link(viz.MainView, t, enabled=True)
 			t_link.preTrans([self._deg2m(tgt[0], tgt[2]), self._deg2m(tgt[1], tgt[2]), tgt[2]])
+			t_dist.append(tgt[2])
 			tar_obj.append(t)
+		
+		# Show farthest target plane
+		tar_plane = vizshape.addPlane(size=(1000.0, 1000.0), axis=vizshape.AXIS_Z, flipFaces=True,
+									  color=self.tar_plane_color, scene=self._scene)
+		p_link = viz.link(viz.MainView, tar_plane, enabled=True)
+		p_link.preTrans([0.0, 0.0, max(t_dist)])
 		
 		self._dlog('Previewing set of {:d} targets.'.format(len(targets)))
 		yield viztask.waitKeyDown(' ')
 
 		for t in tar_obj:
 			t.remove()
+			tar_plane.remove()
 		viz.MainWindow.setScene(prev_scene)
 		self._dlog('Original scene returned')
 
@@ -258,6 +268,10 @@ class VzGazeRecorder():
 		tar_obj = []
 		
 		# Set up targets and switch to validation scene
+		tar_plane = vizshape.addPlane(size=(1000.0, 1000.0), axis=vizshape.AXIS_Z, flipFaces=True,
+									  color=self.tar_plane_color, scene=self._scene)
+		p_link = viz.link(viz.MainView, tar_plane, enabled=True)
+		tar_plane.visible(viz.OFF)
 		for tgt in targets:		
 			t = vizshape.addSphere(radius=self._deg2m(self.fix_size, tgt[2]), scene=self._scene, color=tar_color)
 			t.visible(viz.OFF)
@@ -293,6 +307,8 @@ class VzGazeRecorder():
 				self.recordEvent('VAL_START {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
 			ct.color(tar_color)
 			ct.visible(viz.ON)
+			p_link.preTrans([0.0, 0.0, tarpos[2]])
+			tar_plane.visible(viz.ON)
 			
 			yield viztask.waitTime(float(dur) / 1000)
 			val_recorder.setEnabled(False)
@@ -424,6 +440,7 @@ class VzGazeRecorder():
 		# Return to previous scene
 		for t in tar_obj:
 			t.remove()
+		tar_plane.remove()
 		viz.MainWindow.setScene(prev_scene)
 		self._dlog('Original scene returned')
 
