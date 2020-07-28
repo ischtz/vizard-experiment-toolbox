@@ -20,7 +20,8 @@ from .eyeball import Eyeball
 
 class VzGazeRecorder():
 	
-	def __init__(self, eyetracker, DEBUG=False, missing_val=-99999.0, cursor=False):
+	def __init__(self, eyetracker, DEBUG=False, missing_val=-99999.0, cursor=False,
+				 key_preview='p', key_validate='v', targets=VAL_TAR_CR10):
 		""" Eye movement recording and accuracy/precision measurement class.
 
 		Args:
@@ -28,8 +29,11 @@ class VzGazeRecorder():
 			DEBUG (bool): if True, print debug output to console and store extra fields
 			missing_val (float): Value to log for missing data
 			cursor (bool): if True, show cursor at current 3d gaze position
+			key_preview (str): Vizard key code that should trigger target preview
+			key_validate (str): Vizard key code that should trigger gaze validation
+			targets: default validation target set to use (see validate())
 		"""
-		
+		# Eye tracker properties
 		self._tracker = eyetracker
 		self._tracker_has_eye_flag = False
 		self._tracker_type = type(eyetracker).__name__
@@ -62,13 +66,23 @@ class VzGazeRecorder():
 		# Gaze validation
 		self._scene = viz.addScene()
 		self.fix_size = 0.5 # radius in degrees
+		self._last_val_result = None
+		self._default_targets = targets
 		
 		# Gaze cursor
 		self._cursor = vizshape.addSphere(radius=0.05, color=[1.0, 0.0, 0.0])
 		self._cursor.disable(viz.INTERSECTION)
 		self.showGazeCursor(cursor)
-		
-		
+
+		# Register task callbacks for interactive keys
+		if key_validate is not None:
+			self._val_callback = vizact.onkeydown(key_validate, viztask.schedule, self.validate)
+			self._dlog('Key callback registered: Validation ({:s}).'.format(key_validate))
+		if key_preview is not None:
+			self._prev_callback = vizact.onkeydown(key_preview, viztask.schedule, self.previewTargets)
+			self._dlog('Key callback registered: Target preview ({:s}).'.format(key_preview))
+
+
 	def _dlog(self, text):
 		""" Log debug information to console if debug output is enabled 
 		
@@ -140,6 +154,12 @@ class VzGazeRecorder():
 		self._cursor.visible(visible)
 
 
+	def getLastValResult(self):
+		""" Return a copy of the ValidationResult object resulting from the most
+		recent gaze validation measurement. """
+		return copy.deepcopy(self._last_val_result)
+
+
 	def measureIPD(self, sample_dur=1000.0):
 		""" Measure Inter-Pupillary Distance (IPD) of the HMD wearer
 		
@@ -173,7 +193,7 @@ class VzGazeRecorder():
 		viztask.returnValue(ipd)
 
 
-	def previewTargets(self, targets):
+	def previewTargets(self, targets=VAL_TAR_SQ10):
 		""" Preview a set of validation targets without actually validating 
 		
 		Args:
@@ -218,8 +238,11 @@ class VzGazeRecorder():
 		Returns: vzgazetoolbox.ValidationResult object 
 		"""
 		if targets is None:
-			# Central target drift check (default)
-			targets = VAL_TAR_C
+			if self._default_targets is not None:
+				targets = self._default_targets
+			else:
+				# Central target drift check (default)
+				targets = VAL_TAR_C
 
 		tar_obj = []
 		
@@ -356,7 +379,9 @@ class VzGazeRecorder():
 		
 		rv = ValidationResult(label='validation', time=time.strftime('%d.%m.%Y %H:%M:%S', time.localtime()),
 							  result=avg_data, samples=sam_data, targets=tar_data)
-		viztask.returnValue(rv)
+
+		self._last_val_result = rv
+		viztask.returnValue(self._last_val_result)
 
 
 	def _onUpdate(self, is_val=False):
