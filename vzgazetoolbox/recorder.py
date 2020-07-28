@@ -216,7 +216,7 @@ class VzGazeRecorder():
 		
 		self._dlog('Previewing set of {:d} targets.'.format(len(targets)))
 		yield viztask.waitKeyDown(' ')
-		
+
 		for t in tar_obj:
 			t.remove()
 		viz.MainWindow.setScene(prev_scene)
@@ -269,6 +269,7 @@ class VzGazeRecorder():
 		else:
 			cal_targets = zip(range(0, len(targets)), targets, tar_obj)
 
+		# Calculate data quality measures per target
 		tar_data = []
 		sam_data = []
 		for (c, tarpos, ct) in cal_targets:
@@ -297,7 +298,14 @@ class VzGazeRecorder():
 			deltaY = []
 			gazeX = []
 			gazeY = []
-			ipdV = []
+
+			if self._tracker_has_eye_flag:
+				ipdM = []
+				deltaM = [[], []] # monocular as [L, R]
+				deltaXM = [[], []]
+				deltaYM = [[], []]
+				gazeXM = [[], []]
+				gazeYM = [[], []]
 			
 			d['set_no'] = c
 			d['x'] =  tarpos[0]
@@ -305,9 +313,9 @@ class VzGazeRecorder():
 			d['d'] =  tarpos[2]
 
 			for sam in s[20:]:
-				# gaze-in-headset Euler angles
-				# Note: pitch angle (gazeTdir[1]) is positive-down, thus it is flipped here
-				gazeTdir = [sam['tracker_dirX'], -sam['tracker_dirY'], sam['tracker_dirZ']]
+				# Gaze-in-headset Euler angles - binocular measures
+				# Note: Pitch angle (gazeTdir[1]) is positive-down, thus it is flipped here
+				gazeTdir = [sam['tracker_dirX'], -sam['tracker_dirY']]
 				gazeX.append(gazeTdir[0])
 				gazeY.append(gazeTdir[1])
 
@@ -318,11 +326,23 @@ class VzGazeRecorder():
 				deltaX.append(dX)
 				deltaY.append(dY)
 
+				# Monocular measures, if available
 				if self._tracker_has_eye_flag:
-					ipdV.append(abs(sam['trackerR_posX'] - sam['trackerL_posX']) * 1000.0)
+					ipdM.append(abs(sam['trackerR_posX'] - sam['trackerL_posX']) * 1000.0)
+					for eyei, eye in enumerate(['L', 'R']):
+						gazeTdirM = [sam['tracker{:s}_dirX'.format(eye)], -sam['tracker{:s}_dirY'.format(eye)]]
+						gazeXM[eyei].append(gazeTdirM[0])
+						gazeYM[eyei].append(gazeTdirM[1])
 
-			# TODO: print validation results onto console and event log
-			# TODO: restrict samples used for averaging to last n samples
+						dXM = gazeTdirM[0] - tarpos[0]
+						dYM = gazeTdirM[1] - tarpos[1]
+						dAbsM = math.hypot(dXM, dYM)
+						deltaM[eyei].append(dAbsM)
+						deltaXM[eyei].append(dXM)
+						deltaYM[eyei].append(dYM)
+
+			# TODO: use fixation detection to find stable samples
+			# TODO: wait for a distance trigger (vizproximity) to advance target
 			
 			# Gaze position and offset
 			d['avgX'] = mean(gazeX)
@@ -339,7 +359,7 @@ class VzGazeRecorder():
 			d['medacc'] = median(delta)
 			d['medaccX'] = median([abs(v) for v in deltaX])
 			d['medaccY'] = median([abs(v) for v in deltaY])
-			
+
 			# Precision
 			d['sd'] = sd(delta)
 			d['sdX'] = sd(deltaX)
@@ -348,9 +368,28 @@ class VzGazeRecorder():
 			d['rmsiX'] = rmsi(deltaX)
 			d['rmsiY'] = rmsi(deltaY)
 
-			# Inter-Pupillary Distance
+			# Monocular measures and IPD
 			if self._tracker_has_eye_flag:
-				d['ipd'] = mean(ipdV)
+				d['ipd'] = mean(ipdM)
+				for eyei, eye in enumerate(['L', 'R']):
+					d['avgX_{:s}'.format(eye)] = mean(gazeXM[eyei])
+					d['avgY_{:s}'.format(eye)] = mean(gazeYM[eyei])
+					d['medX_{:s}'.format(eye)] = median(gazeXM[eyei])
+					d['medY_{:s}'.format(eye)] = median(gazeYM[eyei])
+					d['offX_{:s}'.format(eye)] = mean(deltaXM[eyei])
+					d['offY_{:s}'.format(eye)] = mean(deltaYM[eyei])
+					d['acc_{:s}'.format(eye)] = mean(deltaM[eyei])
+					d['accX_{:s}'.format(eye)] = mean([abs(v) for v in deltaXM[eyei]])
+					d['accY_{:s}'.format(eye)] = mean([abs(v) for v in deltaYM[eyei]])
+					d['medacc_{:s}'.format(eye)] = median(deltaM[eyei])
+					d['medaccX_{:s}'.format(eye)] = median([abs(v) for v in deltaXM[eyei]])
+					d['medaccY_{:s}'.format(eye)] = median([abs(v) for v in deltaYM[eyei]])
+					d['sd_{:s}'.format(eye)] = sd(deltaM[eyei])
+					d['sdX_{:s}'.format(eye)] = sd(deltaXM[eyei])
+					d['sdY_{:s}'.format(eye)] = sd(deltaYM[eyei])
+					d['rmsi_{:s}'.format(eye)] = rmsi(deltaM[eyei])
+					d['rmsiX_{:s}'.format(eye)] = rmsi(deltaXM[eyei])
+					d['rmsiY_{:s}'.format(eye)] = rmsi(deltaYM[eyei])
 
 			tar_data.append(d)
 			sam_data.append(s)
@@ -376,9 +415,11 @@ class VzGazeRecorder():
 			t.remove()
 		viz.MainWindow.setScene(prev_scene)
 		self._dlog('Original scene returned')
-		
+
 		rv = ValidationResult(label='validation', time=time.strftime('%d.%m.%Y %H:%M:%S', time.localtime()),
 							  result=avg_data, samples=sam_data, targets=tar_data)
+		if self.recording:
+				self.recordEvent('VAL_RESULT {:.2f} {:.2f} {:.2f}'.format(d['acc'], d['rmsi'], d['sd']))
 
 		self._last_val_result = rv
 		viztask.returnValue(self._last_val_result)
