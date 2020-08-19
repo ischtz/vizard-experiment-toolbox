@@ -11,6 +11,7 @@ import pickle
 
 import viz
 import vizact
+import vizmat
 import viztask
 import vizshape
 
@@ -67,7 +68,7 @@ class VzGazeRecorder():
 		# Gaze validation
 		self._scene = viz.addScene()
 		self.fix_size = 0.5 # radius in degrees
-		self.tar_plane_color = [0.3, 0.3, 0.3]
+		self.tar_plane_color = [0.4, 0.4, 0.4]
 		self._last_val_result = None
 		self._default_targets = targets
 		
@@ -198,41 +199,82 @@ class VzGazeRecorder():
 		viztask.returnValue(ipd)
 
 
-	def previewTargets(self, targets=VAL_TAR_SQ10):
-		""" Preview a set of validation targets without actually validating 
+	def previewTargets(self, targets=VAL_TAR_SQ10, cursor=False):
+		""" Preview a set of validation targets without actually validating. If
+		targets are specified for multiple depth planes, cycle through planes by
+		pressing space.
 		
 		Args:
 			targets: One of the following:
 				- Target set from vzgazetoolbox.VAL_TAR_*, OR
 				- List of targets (x, y, depth), x/y in visual degrees, depth in m
+			cursor (bool): if True, show gaze cursor during preview
 		"""
 		prev_scene = viz.MainWindow.getScene()
 		viz.MainWindow.setScene(self._scene)
+		root = viz.addGroup(scene=self._scene)
 
-		tar_obj = []
-		t_dist = []
-		for tgt in targets:	
-			t = vizshape.addSphere(radius=self._deg2m(self.fix_size, tgt[2]), scene=self._scene, color=[1.0, 1.0, 1.0])
+		if cursor:
+			cursor_state = self._cursor.getVisible()
+			self._cursor.addParent(viz.WORLD, scene=self._scene)
+			self.showGazeCursor(True)
+
+		# Set up depth planes and targets
+		t_dists = []
+		t_planes = {}
+		t_objs = {}
+		for tgt in targets:
+			d = tgt[2]
+			if d not in t_dists:
+				t_dists.append(d)
+				t_planes[d] = vizshape.addPlane(size=(1000.0, 1000.0), axis=vizshape.AXIS_Z, scene=self._scene,
+													 flipFaces=True, color=self.tar_plane_color, parent=root)
+				t_planes[d].setPosition([0.0, 0.0, d], mode=viz.REL_PARENT)
+				t_objs[d] = []
+			
+			# Find target position on depth plane using raycasting
+			tar_mat = vizmat.Transform()
+			tar_mat.makeEuler([tgt[0], -tgt[1], 0.0])
+			tar_dir = tar_mat.getLineForward(1000)
+			info = self._scene.intersect(tar_dir.begin, tar_dir.end, ignoreBackFace = False, all=True)
+			tar_pos = None
+			for obj in info:
+				# Only intersect the correct plane
+				if obj.object == t_planes[d]:
+					tar_pos = obj.point
+			t = vizshape.addSphere(radius=self._deg2m(self.fix_size, d), parent=root, scene=self._scene)
+			t.setPosition(tar_pos, mode=viz.ABS_GLOBAL)
+			
+			# Preview only: highlight each center target
 			if tgt[0] == 0.0 and tgt[1] == 0.0:
-				# Show central target in red for aligment
-				t.color([1.0, 0.0, 0.0])
-			t_link = viz.link(viz.MainView, t, enabled=True)
-			t_link.preTrans([self._deg2m(tgt[0], tgt[2]), self._deg2m(tgt[1], tgt[2]), tgt[2]])
-			t_dist.append(tgt[2])
-			tar_obj.append(t)
+				t.color([0.0, 1.0, 0.0])
+			
+			t.visible(False)
+			t_objs[d].append(t)
 		
-		# Show farthest target plane
-		tar_plane = vizshape.addPlane(size=(1000.0, 1000.0), axis=vizshape.AXIS_Z, flipFaces=True,
-									  color=self.tar_plane_color, scene=self._scene)
-		p_link = viz.link(viz.MainView, tar_plane, enabled=True)
-		p_link.preTrans([0.0, 0.0, max(t_dist)])
-		
-		self._dlog('Previewing set of {:d} targets.'.format(len(targets)))
-		yield viztask.waitKeyDown(' ')
+		t_dists.sort(reverse=True)
+		for d in t_dists:
+			t_planes[d].visible(False)
 
-		for t in tar_obj:
-			t.remove()
-			tar_plane.remove()
+		# Head-lock the completed target array
+		t_link = viz.link(viz.MainView, root, enabled=True)
+
+		# Preview targets, separately for each depth plane
+		for d in t_dists:
+			t_planes[d].visible(True)
+			for t in t_objs[d]:
+				t.visible(True)
+
+			dmsg = 'Previewing targets: {:.2f} m distance ({:d}/{:d})'
+			self._dlog(dmsg.format(d, len(t_objs[d]), len(targets)))
+			yield viztask.waitKeyDown(' ')
+			t_planes[d].visible(False)
+
+		# Clear scene objects
+		if cursor:
+			self._cursor.removeParent(viz.WORLD, scene=self._scene)
+			self.showGazeCursor(cursor_state)
+		root.remove(children=True)
 		viz.MainWindow.setScene(prev_scene)
 		self._dlog('Original scene returned')
 
@@ -265,20 +307,48 @@ class VzGazeRecorder():
 				# Central target drift check (default)
 				targets = VAL_TAR_C
 
-		tar_obj = []
-		
-		# Set up targets and switch to validation scene
-		tar_plane = vizshape.addPlane(size=(1000.0, 1000.0), axis=vizshape.AXIS_Z, flipFaces=True,
-									  color=self.tar_plane_color, scene=self._scene)
-		p_link = viz.link(viz.MainView, tar_plane, enabled=True)
-		tar_plane.visible(viz.OFF)
-		for tgt in targets:		
-			t = vizshape.addSphere(radius=self._deg2m(self.fix_size, tgt[2]), scene=self._scene, color=tar_color)
-			t.visible(viz.OFF)
-			t_link = viz.link(viz.MainView, t, enabled=True)
-			t_link.preTrans([self._deg2m(tgt[0], tgt[2]), self._deg2m(tgt[1], tgt[2]), tgt[2]])
-			tar_obj.append(t)
+		# Set up targets in validation scene
+		root = viz.addGroup(scene=self._scene)
+		t_dists = []
+		t_planes = {}
+		all_targets = []
+		c = 0
+		for tgt in targets:
+			# Add depth plane if it doesn't exist yet
+			d = tgt[2]
+			if d not in t_dists:
+				t_dists.append(d)
+				t_planes[d] = vizshape.addPlane(size=(1000.0, 1000.0), axis=vizshape.AXIS_Z, scene=self._scene,
+													 flipFaces=True, color=self.tar_plane_color, parent=root)
+				t_planes[d].setPosition([0.0, 0.0, d], mode=viz.REL_PARENT)
+			
+			# Find target position on depth plane using raycasting
+			tar_mat = vizmat.Transform()
+			tar_mat.makeEuler([tgt[0], -tgt[1], 0.0])
+			tar_dir = tar_mat.getLineForward(1000)
+			info = self._scene.intersect(tar_dir.begin, tar_dir.end, ignoreBackFace = False, all=True)
+			tar_pos = None
+			for obj in info:
+				# Only intersect the correct plane
+				if obj.object == t_planes[d]:
+					tar_pos = obj.point
+			t = vizshape.addSphere(radius=self._deg2m(self.fix_size, d), parent=root, scene=self._scene)
+			t.setPosition(tar_pos, mode=viz.ABS_GLOBAL)
+			t.color(tar_color)
+			t.visible(False)
 
+			all_targets.append((c, tgt, t, t_planes[tgt[2]]))
+
+		for d in t_dists:
+			t_planes[d].visible(False)
+
+		# Add a background plane to prevent screen color switching between targets
+		bg = vizshape.addPlane(size=(1000.0, 1000.0), axis=vizshape.AXIS_Z, scene=self._scene,
+							   flipFaces=True, color=self.tar_plane_color, parent=root)
+		bg.setPosition([0.0, 0.0, max(t_dists) + 1.0], mode=viz.REL_PARENT)
+
+		# Head-lock the completed target array and switch scenes
+		t_link = viz.link(viz.MainView, root, enabled=True)
 		prev_scene = viz.MainWindow.getScene()
 		viz.MainWindow.setScene(self._scene)
 		self._dlog('Validation scene set up complete')
@@ -288,27 +358,26 @@ class VzGazeRecorder():
 		val_recorder.setEnabled(False)
 		self._val_samples = [] # task starts out enabled, so might have recorded a stray sample
 		
-		# Sample gaze data for each target
 		if randomize:
-			cal_targets = random.sample(zip(range(0, len(targets)), targets, tar_obj), len(targets))
+			cal_targets = random.sample(all_targets, len(all_targets))
 		else:
-			cal_targets = zip(range(0, len(targets)), targets, tar_obj)
+			cal_targets = all_targets
 
 		# Calculate data quality measures per target
 		tar_data = []
 		sam_data = []
-		for (c, tarpos, ct) in cal_targets:
+		for (c, tarpos, ct, tplane) in cal_targets:
 
 			d = {}
 
+			# Record gaze samples
 			yield viztask.waitTime(1.0)
 			val_recorder.setEnabled(True)
 			if self.recording:
 				self.recordEvent('VAL_START {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
+			tplane.visible(True)
 			ct.color(tar_color)
-			ct.visible(viz.ON)
-			p_link.preTrans([0.0, 0.0, tarpos[2]])
-			tar_plane.visible(viz.ON)
+			ct.visible(True)
 			
 			yield viztask.waitTime(float(dur) / 1000)
 			val_recorder.setEnabled(False)
@@ -316,7 +385,8 @@ class VzGazeRecorder():
 			ct.color([0.1, 1.0, 0.1])
 			yield viztask.waitTime(0.2)
 			
-			ct.visible(viz.OFF)
+			ct.visible(False)
+			tplane.visible(False)
 			if self.recording:
 				self.recordEvent('VAL_END {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
 			
@@ -437,10 +507,8 @@ class VzGazeRecorder():
 		for var in avg_data.keys():
 			avg_data[var] = mean(avg_data[var])
 
-		# Return to previous scene
-		for t in tar_obj:
-			t.remove()
-		tar_plane.remove()
+		# Clear and return to previous scene
+		root.remove(children=True)
 		viz.MainWindow.setScene(prev_scene)
 		self._dlog('Original scene returned')
 
