@@ -62,7 +62,6 @@ class VzGazeRecorder():
 		self._force_update = False
 		self._samples = []
 		self._val_samples = []
-		self._val_target = None
 		self._events = []
 		self._recorder = vizact.onupdate(viz.PRIORITY_PLUGINS+1, self._onUpdate)
 		
@@ -127,22 +126,22 @@ class VzGazeRecorder():
 		# Gaze, target, and view nodes
 		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
 		gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
+		vgT = gT.getForward()				# Gaze-in-Tracker unit vector
 		gW = copy.deepcopy(gT)				# Gaze-in-World FoR
 		gW.postMult(cW)
-		vgW = gW.getForward()				# Gaze unit vector
+		vgW = gW.getForward()				# Gaze-in-World unit vector
 		nodes = {'tracker': gT,
 				 'view':	cW,
 				 'gaze': 	gW}
-		vecs = {'gazeVec': vgW}
-
-		# Current validation target, if any
-		if self._val_target is not None:
-			nodes['target'] = self._val_target.getMatrix(mode=viz.ABS_GLOBAL)	# Target-in-World FoR
+		vecs = {'gazeVec':    vgW,
+				'trackVec': vgT}
 
 		# Monocular data, if available
 		if self._tracker_has_eye_flag:	
 			gTL = self._tracker.getMatrix(flag=viz.LEFT_EYE)
 			gTR = self._tracker.getMatrix(flag=viz.RIGHT_EYE)
+			vgTL = gTL.getForward()
+			vgTR = gTR.getForward()
 			gWL = copy.deepcopy(gTL)
 			gWR = copy.deepcopy(gTR)
 			gWL.postMult(cW)
@@ -155,6 +154,8 @@ class VzGazeRecorder():
 			nodes['gazeR'] = gWR
 			vecs['gazeVecL'] = vgWL
 			vecs['gazeVecR'] = vgWR
+			vecs['trackVecL'] = vgTL
+			vecs['trackVecR'] = vgTR
 
 		# Store position data
 		for lbl, node_matrix in nodes.iteritems():
@@ -396,8 +397,10 @@ class VzGazeRecorder():
 			t.setPosition(tar_pos, mode=viz.ABS_GLOBAL)
 			t.color(tar_color)
 			t.visible(False)
+			tgtHMD = t.getPosition(mode=viz.REL_PARENT) # target in HMD space
 
-			all_targets.append((c, tgt, t, t_planes[tgt[2]]))
+			all_targets.append((c, tgt, tgtHMD, t, t_planes[tgt[2]]))
+			c += 1
 
 		for d in t_dists:
 			t_planes[d].visible(False)
@@ -426,13 +429,12 @@ class VzGazeRecorder():
 		# Calculate data quality measures per target
 		tar_data = []
 		sam_data = []
-		for (c, tarpos, ct, tplane) in cal_targets:
+		for (c, tarpos, tgtHMD, ct, tplane) in cal_targets:
 
 			d = {}
 
 			# Record gaze samples
 			yield viztask.waitTime(1.0)
-			self._val_target = ct
 			val_recorder.setEnabled(True)
 			if self.recording:
 				self.recordEvent('VAL_START {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
@@ -451,57 +453,87 @@ class VzGazeRecorder():
 			if self.recording:
 				self.recordEvent('VAL_END {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
 			
+			# Binocular measures
 			delta = []
 			deltaX = []
 			deltaY = []
 			gazeX = []
 			gazeY = []
 
-			if self._tracker_has_eye_flag:
-				ipdM = []
-				deltaM = [[], []] # monocular as [L, R]
-				deltaXM = [[], []]
-				deltaYM = [[], []]
-				gazeXM = [[], []]
-				gazeYM = [[], []]
+			# Monocular measures, only used when supported
+			ipdM = []
+			deltaM = [[], []] # monocular as [L, R]
+			deltaXM = [[], []]
+			deltaYM = [[], []]
+			gazeXM = [[], []]
+			gazeYM = [[], []]
 			
 			d['set_no'] = c
 			d['x'] =  tarpos[0]
 			d['y'] =  tarpos[1]
 			d['d'] =  tarpos[2]
-
+			d['xm'] =  tgtHMD[0] # in m 
+			d['ym'] =  tgtHMD[1]
+			
 			for sam in s[20:]:
-				# Gaze-in-headset Euler angles - binocular measures
-				# Note: Pitch angle (gazeTdir[1]) is positive-down, thus it is flipped here
-				gazeTdir = [sam['tracker_dirX'], -sam['tracker_dirY']]
-				gazeX.append(gazeTdir[0])
-				gazeY.append(gazeTdir[1])
+				# Calculate gaze-target angular errors in HMD space
+				gazeOri = (sam['tracker_posX'], sam['tracker_posY'], sam['tracker_posZ'])
+				eyeTarVec = vizmat.VectorToPoint(gazeOri, tgtHMD)
+				eyeGazeVec = (sam['trackVec_X'], sam['trackVec_Y'], sam['trackVec_Z'])
 
-				dX = gazeTdir[0] - tarpos[0]
-				dY = gazeTdir[1] - tarpos[1]
-				dAbs = math.hypot(dX, dY)
-				delta.append(dAbs)
+				angularDiff = vizmat.Transform()
+				angularDiff.makeVecRotVec(eyeTarVec, eyeGazeVec)
+				(dX, dY, _) = angularDiff.getEuler()
+				dY = -dY
+
+				delta.append(vizmat.AngleBetweenVector(eyeGazeVec, eyeTarVec))
 				deltaX.append(dX)
 				deltaY.append(dY)
 
-				# Monocular measures, if available
+				# Average gaze angle in HMD space
+				eyeHeadVec = (sam['trackVec_X'], sam['trackVec_Y'], sam['trackVec_Z'])
+				eyeHeadRot = vizmat.Transform()
+				eyeHeadRot.makeVecRotVec([0, 0, 1], eyeHeadVec)
+				(gX, gY, _) = eyeHeadRot.getEuler()
+				gY = -gY
+
+				gazeX.append(gX)
+				gazeY.append(gY)
+
+				# Monocular data, if available
 				if self._tracker_has_eye_flag:
 					ipdM.append(abs(sam['trackerR_posX'] - sam['trackerL_posX']) * 1000.0)
 					for eyei, eye in enumerate(['L', 'R']):
-						gazeTdirM = [sam['tracker{:s}_dirX'.format(eye)], -sam['tracker{:s}_dirY'.format(eye)]]
-						gazeXM[eyei].append(gazeTdirM[0])
-						gazeYM[eyei].append(gazeTdirM[1])
+						# Angular gaze-target errors
+						gazeOriM = (sam['tracker{:s}_posX'.format(eye)],
+									sam['tracker{:s}_posY'.format(eye)],
+									sam['tracker{:s}_posZ'.format(eye)])
+						eyeTarVecM = vizmat.VectorToPoint(gazeOriM, tgtHMD)
+						eyeGazeVecM = (sam['trackVec{:s}_X'.format(eye)],
+									   sam['trackVec{:s}_Y'.format(eye)],
+									   sam['trackVec{:s}_Z'.format(eye)])
+						
+						angularDiffM = vizmat.Transform()
+						angularDiffM.makeVecRotVec(eyeTarVecM, eyeGazeVecM)
+						(dXM, dYM, _) = angularDiff.getEuler()
+						dYM = -dYM
 
-						dXM = gazeTdirM[0] - tarpos[0]
-						dYM = gazeTdirM[1] - tarpos[1]
-						dAbsM = math.hypot(dXM, dYM)
-						deltaM[eyei].append(dAbsM)
+						deltaM[eyei].append(vizmat.AngleBetweenVector(eyeGazeVecM, eyeTarVecM))
 						deltaXM[eyei].append(dXM)
 						deltaYM[eyei].append(dYM)
 
-			# TODO: use fixation detection to find stable samples
-			# TODO: wait for a distance trigger (vizproximity) to advance target
-			
+						# Average gaze angles
+						eyeHeadVecM = (sam['trackVec{:s}_X'.format(eye)], 
+									   sam['trackVec{:s}_Y'.format(eye)], 
+									   sam['trackVec{:s}_Z'.format(eye)])
+						eyeHeadRotM = vizmat.Transform()
+						eyeHeadRotM.makeVecRotVec([0, 0, 1], eyeHeadVecM)
+						(gXM, gYM, _) = eyeHeadRotM.getEuler()
+						gYM = -gYM
+
+						gazeXM[eyei].append(gXM)
+						gazeYM[eyei].append(gYM)
+
 			# Gaze position and offset
 			d['avgX'] = mean(gazeX)
 			d['avgY'] = mean(gazeY)
@@ -555,7 +587,6 @@ class VzGazeRecorder():
 			self._dlog('VAL_END {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
 
 		# Remove validation recorder
-		self._val_target = None
 		val_recorder.setEnabled(False)
 		val_recorder.remove()
 
