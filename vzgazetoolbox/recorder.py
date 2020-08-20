@@ -62,6 +62,7 @@ class VzGazeRecorder():
 		self._force_update = False
 		self._samples = []
 		self._val_samples = []
+		self._val_target = None
 		self._events = []
 		self._recorder = vizact.onupdate(viz.PRIORITY_PLUGINS+1, self._onUpdate)
 		
@@ -112,6 +113,65 @@ class VzGazeRecorder():
 		return m
 
 
+	def _record_val_sample(self):
+		""" Record a gaze sample during validation """
+		
+		if self._force_update:
+			viz.update(viz.UPDATE_PLUGINS | viz.UPDATE_LINKS)
+
+		s = {}
+		s['time'] = viz.tick() * 1000.0
+		s['frameno'] = viz.getFrameNumber()
+		s['systime'] = time.clock() * 1000.0
+
+		# Gaze, target, and view nodes
+		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
+		gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
+		gW = copy.deepcopy(gT)				# Gaze-in-World FoR
+		gW.postMult(cW)
+		vgW = gW.getForward()				# Gaze unit vector
+		nodes = {'tracker': gT,
+				 'view':	cW,
+				 'gaze': 	gW}
+		vecs = {'gazeVec': vgW}
+
+		# Current validation target, if any
+		if self._val_target is not None:
+			nodes['target'] = self._val_target.getMatrix(mode=viz.ABS_GLOBAL)	# Target-in-World FoR
+
+		# Monocular data, if available
+		if self._tracker_has_eye_flag:	
+			gTL = self._tracker.getMatrix(flag=viz.LEFT_EYE)
+			gTR = self._tracker.getMatrix(flag=viz.RIGHT_EYE)
+			gWL = copy.deepcopy(gTL)
+			gWR = copy.deepcopy(gTR)
+			gWL.postMult(cW)
+			gWR.postMult(cW)
+			vgWL = gWL.getForward()
+			vgWR = gWR.getForward()
+			nodes['trackerL'] = gTL
+			nodes['trackerR'] = gTR
+			nodes['gazeL'] = gWL
+			nodes['gazeR'] = gWR
+			vecs['gazeVecL'] = vgWL
+			vecs['gazeVecR'] = vgWR
+
+		# Store position data
+		for lbl, node_matrix in nodes.iteritems():
+			p = node_matrix.getPosition()
+			s['{:s}_posX'.format(lbl)] = p[0]
+			s['{:s}_posY'.format(lbl)] = p[1]
+			s['{:s}_posZ'.format(lbl)] = p[2]
+
+		# Store gaze unit direction vectors
+		for lbl, vec in vecs.iteritems():
+			s['{:s}_X'.format(lbl)] = vec[0]
+			s['{:s}_Y'.format(lbl)] = vec[1]
+			s['{:s}_Z'.format(lbl)] = vec[2]
+		
+		self._val_samples.append(s)
+ 
+	
 	def _get_val_samples(self):
 		""" Retrieve and clear current validation data """
 		s = self._val_samples
@@ -180,14 +240,14 @@ class VzGazeRecorder():
 			raise NotImplementedError(err.format(self._tracker_type))
 
 		# Sample gaze data using the validation recorder
-		val_recorder = vizact.onupdate(-1, self.recordSample, is_val=True)
+		val_recorder = vizact.onupdate(-1, self._record_val_sample)
 		self._val_samples = [] # task starts out enabled, so might have recorded a stray sample
 		yield viztask.waitTime(float(sample_dur) / 1000)
 		val_recorder.setEnabled(False)
 		s = self._get_val_samples()
 		val_recorder.setEnabled(False)
 		val_recorder.remove()
-		
+
 		# Calculate average IPD
 		ipdval = []
 		for sam in s:
@@ -354,7 +414,7 @@ class VzGazeRecorder():
 		self._dlog('Validation scene set up complete')
 		
 		# Initialize validation recorder
-		val_recorder = vizact.onupdate(-1, self.recordSample, is_val=True)
+		val_recorder = vizact.onupdate(-1, self._record_val_sample)
 		val_recorder.setEnabled(False)
 		self._val_samples = [] # task starts out enabled, so might have recorded a stray sample
 		
@@ -372,6 +432,7 @@ class VzGazeRecorder():
 
 			# Record gaze samples
 			yield viztask.waitTime(1.0)
+			self._val_target = ct
 			val_recorder.setEnabled(True)
 			if self.recording:
 				self.recordEvent('VAL_START {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
@@ -494,6 +555,7 @@ class VzGazeRecorder():
 			self._dlog('VAL_END {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
 
 		# Remove validation recorder
+		self._val_target = None
 		val_recorder.setEnabled(False)
 		val_recorder.remove()
 
@@ -521,12 +583,9 @@ class VzGazeRecorder():
 		viztask.returnValue(self._last_val_result)
 
 
-	def _onUpdate(self, is_val=False):
+	def _onUpdate(self):
 		""" Task callback that runs on each display frame. Always updates 
 		current gaze data properties, triggers sample recording if recording is on.
-	
-		Args:
-			is_val (bool): if True, record to validation dataset (internal use)
 		"""
 		if self._force_update:
 			viz.update(viz.UPDATE_PLUGINS | viz.UPDATE_LINKS)
@@ -558,10 +617,6 @@ class VzGazeRecorder():
 			nodes['gazeL'] = gWL
 			nodes['gazeR'] = gWR
 		
-		# Additional tracked nodes
-		for obj in self._tracked_nodes.keys():
-			nodes[obj] = self._tracked_nodes[obj].getMatrix()
-
 		# Update current gaze information and cursor position
 		g3D_line = gW.getLineForward(1000)
 		g3D_test = viz.intersect(g3D_line.begin, g3D_line.end)
@@ -578,17 +633,20 @@ class VzGazeRecorder():
 
 		# Record sample if enabled
 		if self.recording:
+			# Additional tracked nodes
+			for obj in self._tracked_nodes.keys():
+				nodes[obj] = self._tracked_nodes[obj].getMatrix()
+
 			sample = ((time_ms, frame, clock), nodes)
-			self.recordSample(is_val=is_val, sample=sample)
+			self.recordSample(sample=sample)
 
 
-	def recordSample(self, console=False, is_val=False, sample=None):
+	def recordSample(self, console=False, sample=None):
 		""" Records transform matrices for head, gaze and tracked objects for the
 		current sample. Can also be called manually to record a single frame.
 		
 		Args:
 			console (bool): if True, print logged value to Vizard console
-			is_val (bool): if True, record to validation dataset (internal use)
 			sample: sample data, if called via _onUpdate (internal use)
 		"""
 		s = {}
@@ -665,10 +723,7 @@ class VzGazeRecorder():
 			s['eye_stateL'] = self._tracker.getEyeOpen(viz.LEFT_EYE)
 			s['eye_stateR'] = self._tracker.getEyeOpen(viz.RIGHT_EYE)
 
-		if is_val:
-			self._val_samples.append(s)
-		else:
-			self._samples.append(s)
+		self._samples.append(s)
 		
 		if console:
 			# Note: printing coordinates will likely slow down rendering! Use for debugging only.
