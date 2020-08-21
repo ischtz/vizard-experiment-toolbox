@@ -475,7 +475,11 @@ class VzGazeRecorder():
 			d['xm'] =  tgtHMD[0] # in m 
 			d['ym'] =  tgtHMD[1]
 			
-			for sam in s[20:]:
+			# Select stable fixation samples
+			# TODO: use actual fixation detector here!
+			s = s[20:]
+
+			for sam in s:
 				# Calculate gaze-target angular errors in HMD space
 				gazeOri = (sam['tracker_posX'], sam['tracker_posY'], sam['tracker_posZ'])
 				eyeTarVec = vizmat.VectorToPoint(gazeOri, tgtHMD)
@@ -485,6 +489,7 @@ class VzGazeRecorder():
 				angularDiff.makeVecRotVec(eyeTarVec, eyeGazeVec)
 				(dX, dY, _) = angularDiff.getEuler()
 				dY = -dY
+				sam['targetErr_X'], sam['targetErr_Y'] = dX, dY
 
 				delta.append(vizmat.AngleBetweenVector(eyeGazeVec, eyeTarVec))
 				deltaX.append(dX)
@@ -499,6 +504,7 @@ class VzGazeRecorder():
 
 				gazeX.append(gX)
 				gazeY.append(gY)
+				sam['targetGaze_X'], sam['targetGaze_Y'] = gX, gY
 
 				# Monocular data, if available
 				if self._tracker_has_eye_flag:
@@ -517,7 +523,9 @@ class VzGazeRecorder():
 						angularDiffM.makeVecRotVec(eyeTarVecM, eyeGazeVecM)
 						(dXM, dYM, _) = angularDiff.getEuler()
 						dYM = -dYM
-
+						
+						sam['targetErr{:s}_X'.format(eye)] = dXM
+						sam['targetErr{:s}_Y'.format(eye)] = dYM
 						deltaM[eyei].append(vizmat.AngleBetweenVector(eyeGazeVecM, eyeTarVecM))
 						deltaXM[eyei].append(dXM)
 						deltaYM[eyei].append(dYM)
@@ -530,7 +538,9 @@ class VzGazeRecorder():
 						eyeHeadRotM.makeVecRotVec([0, 0, 1], eyeHeadVecM)
 						(gXM, gYM, _) = eyeHeadRotM.getEuler()
 						gYM = -gYM
-
+						
+						sam['targetGaze{:s}_X'.format(eye)] = gXM
+						sam['targetGaze{:s}_Y'.format(eye)] = gYM
 						gazeXM[eyei].append(gXM)
 						gazeYM[eyei].append(gYM)
 
