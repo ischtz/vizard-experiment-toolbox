@@ -3,6 +3,9 @@
 # Vizard gaze tracking toolbox
 # Data structures and classes that do not depend on Vizard
 
+import json
+import pickle
+
 try:
 	# Some functionality such as plotting is only available when a scientific 
 	# Python stack is installed, which by default is not the case in Vizard.
@@ -202,6 +205,24 @@ class ValidationResult():
 		return out
 
 
+	def save(self, file_name='val_result.pkl', format='pickle'):
+		""" Save validation data to a file. 
+		Pickling the whole object enables later access to built-in analysis
+		and plotting methods, but other file formats are available as well. 
+		
+		Args:
+			file_name (str): Output file name
+			format (str): File type, 'json' or 'pickle'
+		"""
+		if format.lower() == 'json':
+			with open(file_name, 'w') as f:
+				f.write(json.dumps(self.__dict__))
+
+		elif format.lower() == 'pickle':
+			with open(file_name, 'wb') as f:
+				pickle.dump(self, f)
+
+	
 	if _HAS_SCI_PKGS:
 		def plotAccuracy(self):
 			""" Spatial plot of mean and median accuracy in dataset """
