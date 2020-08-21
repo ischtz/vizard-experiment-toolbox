@@ -203,23 +203,104 @@ class ValidationResult():
 
 
 	if _HAS_SCI_PKGS:
-		def plot_accuracy(self):
+		def plotAccuracy(self):
 			""" Spatial plot of mean and median accuracy in dataset """
-			legend_markers = []
 			fig = plt.figure()
-			ax = fig.add_subplot(111)
-			
+
+			# One subplot per depth plane
+			depths = []
 			for t in self.targets:
-				ax.plot(t['x'], t['y'], 'k+', markersize=12)
-				ax.plot([t['x'], t['avgX']], [t['y'], t['avgY']], 'r-', linewidth=1)
-				ax.plot(t['avgX'], t['avgY'], 'r.', markersize=10)
-				ax.plot([t['x'], t['medX']], [t['y'], t['medY']], 'b-', linewidth=1)
-				ax.plot(t['medX'], t['medY'], 'b.', markersize=10)
+				if t['d'] not in depths:
+					depths.append(t['d'])
 			
-			ax.set_title('Validation Accuracy Plot')
-			ax.set_xlabel('Horizontal Position (degrees)')
-			ax.set_ylabel('Vertical Position (degrees)')
+			axs = {}
+			c = 1
+			for d in depths:
+				ax = fig.add_subplot(1, len(depths), c)
+				ax.set_title('Accuracy, d={:.1f}m'.format(d))
+				ax.set_xlabel('Horizontal Position (degrees)')
+				ax.set_ylabel('Vertical Position (degrees)')
+
+				legend_handles = []
+				for t in self.targets:
+					if t['d'] == d:
+						ax.plot(t['x'], t['y'], 'k+', markersize=12)
+						ax.plot([t['x'], t['avgX']], [t['y'], t['avgY']], 'r-', linewidth=1)
+						Hmean, = ax.plot(t['avgX'], t['avgY'], 'r.', markersize=10)
+						ax.plot([t['x'], t['medX']], [t['y'], t['medY']], 'b-', linewidth=1)
+						Hmedian, = ax.plot(t['medX'], t['medY'], 'b.', markersize=10)
+						ax.annotate('{:.2f}'.format(t['acc']), xy=(t['x'], t['y']), xytext=(0, 10),
+									textcoords='offset points', ha='center')
+
+						if len(legend_handles) < 1:
+							legend_handles.append(Hmean)
+							legend_handles.append(Hmedian)
+
+				ax.margins(x=0.15, y=0.15)
+				ax.legend(legend_handles, ['mean', 'median'], ncol=2, bbox_to_anchor=(0, 0), loc='lower left')
+				axs[d] = ax
+				c += 1
+
 			fig.show()
+
+
+		def plotPrecision(self, measure='sd'):
+			""" Spatial plot of individual samples and SD precision in dataset 
+			
+			Args:
+				measure (str): 'sd' or 'rmsi'
+			"""
+			if measure not in ['sd', 'rmsi']:
+				raise ValueError('Invalid measure specified.')
+			fig = plt.figure()
+
+			# One subplot per depth plane
+			depths = []
+			for t in self.targets:
+				if t['d'] not in depths:
+					depths.append(t['d'])
+			
+			axs = {}
+			c = 1
+			for d in depths:
+				ax = fig.add_subplot(1, len(depths), c)
+				ax.set_title('Precision ({:s}), d={:.1f}m'.format(measure, d))
+				ax.set_xlabel('Horizontal Position (degrees)')
+				ax.set_ylabel('Vertical Position (degrees)')
+
+				for idx, t in enumerate(self.targets):
+					sam = self.samples[idx]
+					if t['d'] == d:
+						ax.plot(t['x'], t['y'], 'k+', markersize=12)
+						tar_samX = []
+						tar_samY = []
+						for s in sam:
+							tar_samX.append(s['targetGaze_X'])
+							tar_samY.append(s['targetGaze_Y'])
+						ax.plot(tar_samX, tar_samY, '.',  markersize=3)
+						ax.plot(t['avgX'], t['avgY'], 'k.', markersize=6)
+						ax.annotate('{:.2f}'.format(t[measure]), xy=(t['x'], t['y']), xytext=(0, 10),
+									textcoords='offset points', ha='center')
+
+				ax.margins(x=0.15, y=0.15)
+				axs[d] = ax
+				c += 1
+
+			fig.show()
+
+
+		def getTargetDataFrame(self):
+			""" Return pandas.DataFrame of individual target results """
+			return pd.DataFrame(self.targets)
+
+
+		def getSamplesDataFrame(self, target):
+			""" Return pandas.DataFrame of raw sample data for given target 
+			
+			Args:
+				target (int): Target index in self.targets to retrieve
+			"""
+			return pd.DataFrame(self.samples[target])
 			
 
 
