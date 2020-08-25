@@ -169,17 +169,14 @@ class ValidationResult():
 	""" Container to hold results and raw data of a gaze validation sequence 
 	
 	Attributes:
-		time (str): Validation time stamp
-		label (str): Optional label for this validation (e.g., 'pre' or 'post')
 		result (dict): Dict of result measures
+		metadata (dict): Participant metadata dict
 		targets: List of result dicts per target
 		samples: List of raw sample data per target
 	"""
-	def __init__(self, time='', label='', result=None, targets=None, samples=None):
+	def __init__(self, result=None, metadata={}, targets=None, samples=None):
 
-		# Metadata
-		self.time = time
-		self.label = label
+		self.metadata = metadata
 
 		# Global average accuracy, precision, etc. 
 		vars = ['acc', 'accX', 'accY', 'sd', 'sdX', 'sdY',  'rmsi', 'rmsiX', 'rmsiY', 'ipd', 

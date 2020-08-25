@@ -347,7 +347,7 @@ class VzGazeRecorder():
 		self._dlog('Eye tracker calibration finished.')
 	
 
-	def validate(self, targets=None, dur=2000, tar_color=[1.0, 1.0, 1.0], randomize=True):
+	def validate(self, targets=None, dur=2000, tar_color=[1.0, 1.0, 1.0], randomize=True, metadata=None):
 		""" Measure gaze accuracy and precision for a set of head-locked targets
 		in a special validation scene. 
 		
@@ -358,6 +358,7 @@ class VzGazeRecorder():
 			dur (int): sampling duration per target, in ms
 			tar_color (3-tuple): Target sphere color
 			randomize (bool): if True, randomize target order in each validation
+			metadata (dict): Dict of participant metadata to include with result
 		
 		Returns: vzgazetoolbox.ValidationResult object 
 		"""
@@ -615,8 +616,14 @@ class VzGazeRecorder():
 		viz.MainWindow.setScene(prev_scene)
 		self._dlog('Original scene returned')
 
-		rv = ValidationResult(label='validation', time=time.strftime('%d.%m.%Y %H:%M:%S', time.localtime()),
-							  result=avg_data, samples=sam_data, targets=tar_data)
+		# Store participant metadata
+		rmeta = {'datetime': time.strftime('%d.%m.%Y %H:%M:%S', time.localtime()),
+				 'label': 	 'validation',
+				 'version':  0.1}
+		if metadata is not None:
+			rmeta.update(metadata)
+
+		rv = ValidationResult(result=avg_data, samples=sam_data, targets=tar_data, metadata=rmeta)
 		if self.recording:
 				self.recordEvent('VAL_RESULT {:.2f} {:.2f} {:.2f}'.format(d['acc'], d['rmsi'], d['sd']))
 
