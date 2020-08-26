@@ -303,7 +303,9 @@ class VzGazeRecorder():
 				# Only intersect the correct plane
 				if obj.object == t_planes[d]:
 					tar_pos = obj.point
-			t = vizshape.addSphere(radius=self._deg2m(self.fix_size, d), parent=root, scene=self._scene)
+			t = viz.addGroup(scene=self._scene, parent=root)
+			t_out = vizshape.addCylinder(radius=self._deg2m(self.fix_size, d), height=self._deg2m(self.fix_size/20.0, d), parent=t, scene=self._scene, axis=vizshape.AXIS_Z, color=(1, 1, 1))
+			t_in = vizshape.addSphere(radius=self._deg2m(self.fix_size/5.0, d), parent=t, scene=self._scene, color=(0,0,0))
 			t.setPosition(tar_pos, mode=viz.ABS_GLOBAL)
 			
 			# Preview only: highlight each center target
@@ -394,9 +396,11 @@ class VzGazeRecorder():
 				# Only intersect the correct plane
 				if obj.object == t_planes[d]:
 					tar_pos = obj.point
-			t = vizshape.addSphere(radius=self._deg2m(self.fix_size, d), parent=root, scene=self._scene)
+			t = viz.addGroup(scene=self._scene, parent=root)
+			#t_out = vizshape.addSphere(radius=self._deg2m(self.fix_size, d), parent=t, scene=self._scene, color=(1, 1, 1))
+			t_out = vizshape.addCylinder(radius=self._deg2m(self.fix_size, d), height=self._deg2m(self.fix_size/20.0, d), parent=t, scene=self._scene, axis=vizshape.AXIS_Z, color=(1, 1, 1))
+			t_in = vizshape.addSphere(radius=self._deg2m(self.fix_size/5.0, d), parent=t, scene=self._scene, color=(0,0,0), pos=[0, 0, -self._deg2m(self.fix_size, d)])
 			t.setPosition(tar_pos, mode=viz.ABS_GLOBAL)
-			t.color(tar_color)
 			t.visible(False)
 			tgtHMD = t.getPosition(mode=viz.REL_PARENT) # target in HMD space
 
@@ -440,7 +444,6 @@ class VzGazeRecorder():
 			if self.recording:
 				self.recordEvent('VAL_START {:d} {:.1f} {:.1f} {:.1f}'.format(c, *tarpos))
 			tplane.visible(True)
-			ct.color(tar_color)
 			ct.visible(True)
 			
 			yield viztask.waitTime(float(dur) / 1000)
