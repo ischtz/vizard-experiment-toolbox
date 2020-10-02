@@ -756,8 +756,8 @@ class VzGazeRecorder():
 
 		# Store 3D gaze point data
 		s['gaze3d_posX'] = self._gaze3d[0]
-		s['gaze3d_posY'] = self._gaze3d[0]
-		s['gaze3d_posZ'] = self._gaze3d[0]
+		s['gaze3d_posY'] = self._gaze3d[1]
+		s['gaze3d_posZ'] = self._gaze3d[2]
 		if self._gaze3d_valid:
 			s['gaze3d_valid'] = 1
 			s['gaze3d_object'] = str(self._gaze3d_intersect)
