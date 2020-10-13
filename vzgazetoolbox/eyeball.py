@@ -3,8 +3,11 @@
 # Vizard gaze tracking toolbox
 # 3D Eyeball model class
 
+import os
 import viz
-import vizshape 
+import vizshape
+
+_module_path = os.path.split(os.path.abspath(__file__))[0]
 
 class Eyeball(viz.VizNode):
 	""" Simple eyeball object to visually indicate gaze direction """
@@ -25,7 +28,7 @@ class Eyeball(viz.VizNode):
 						  'green': [0.109, 0.469, 0.277],
 						  'grey':  [0.285, 0.461, 0.395]}
 		
-		eye = viz.addChild('unit_eye.gltf')
+		eye = viz.addChild(os.path.join(_module_path, 'models', 'unit_eye.gltf'))
 		eye.visible(visible)
 		viz.VizNode.__init__(self, eye.id)
 		
