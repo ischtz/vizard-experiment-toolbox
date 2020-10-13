@@ -22,7 +22,8 @@ from .eyeball import Eyeball
 class VzGazeRecorder():
 	
 	def __init__(self, eyetracker, DEBUG=False, missing_val=-99999.0, cursor=False,
-				 key_calibrate='c', key_preview='p', key_validate='v', targets=VAL_TAR_CR10):
+				 key_calibrate='c', key_preview='p', key_validate='v', targets=VAL_TAR_CR10,
+				 prealloc=324000):
 		""" Eye movement recording and accuracy/precision measurement class.
 
 		Args:
@@ -34,6 +35,8 @@ class VzGazeRecorder():
 			key_preview (str): Vizard key code that should trigger target preview
 			key_validate (str): Vizard key code that should trigger gaze validation
 			targets: default validation target set to use (see validate())
+			prealloc (int): number of samples to preallocate to avoid skipped frames due to 
+				Python list extension. Default should be good for 60 min at 90 Hz. 
 		"""
 		# Eye tracker properties
 		self._tracker = eyetracker
@@ -60,7 +63,9 @@ class VzGazeRecorder():
 		# Sample recording
 		self.recording = False
 		self._force_update = False
-		self._samples = []
+		self._samples = [None,] * prealloc
+		self._samples_idx = 0
+		self._prealloc = prealloc
 		self._val_samples = []
 		self._events = []
 		self._recorder = vizact.onupdate(viz.PRIORITY_PLUGINS+1, self._onUpdate)
@@ -774,8 +779,13 @@ class VzGazeRecorder():
 			s['eye_stateL'] = self._tracker.getEyeOpen(viz.LEFT_EYE)
 			s['eye_stateR'] = self._tracker.getEyeOpen(viz.RIGHT_EYE)
 
-		self._samples.append(s)
-		
+		# Add to preallocated list, or switch to appending if full
+		if self._samples_idx < self._prealloc:
+			self._samples[self._samples_idx] = s
+			self._samples_idx += 1
+		else:
+			self._samples.append(s)
+
 		if console:
 			# Note: printing coordinates will likely slow down rendering! Use for debugging only.
 			cWp = cW.getPosition()
@@ -895,6 +905,11 @@ class VzGazeRecorder():
 		EROWFMT = sep.join(['{:.4f}', '"{:s}"']) + '\n'
 		
 		if sample_file is not None:
+
+			# Cut recording to size if below preallocation limit
+			if self._samples_idx < self._prealloc:
+				self._samples = self._samples[0:self._samples_idx]
+			
 			n = 0
 			with open(sample_file, 'w') as of:
 				of.write(HEADER)
@@ -903,7 +918,7 @@ class VzGazeRecorder():
 					of.write(ROWFMT.format(*row))
 					n += 1
 			self._dlog('Saved {:d} samples to file: {:s}'.format(n, sample_file))
-		
+
 		if event_file is not None:
 			n = 0
 			with open(event_file, 'w') as ef:
@@ -931,7 +946,8 @@ class VzGazeRecorder():
 		self.recording = False
 		dtypes = []
 		if samples:
-			self._samples = []
+			self._samples = [None,] * self._prealloc
+			self._samples_idx = 0
 			dtypes.append('samples')
 		if events:
 			self._events = []
