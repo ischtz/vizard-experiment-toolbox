@@ -3,11 +3,13 @@
 # Vizard gaze tracking toolbox
 # Gaze and object tracking and recording class
 
+import sys
 import time
 import math
 import copy 
 import random 
 import pickle
+from builtins import object
 
 import viz
 import vizact
@@ -19,7 +21,14 @@ from .data import *
 from .stats import *
 from .eyeball import Eyeball
 
-class VzGazeRecorder():
+# Python version compatibility
+if sys.version_info[0] == 3:
+	from time import perf_counter
+else:
+	from time import clock as perf_counter	
+
+
+class VzGazeRecorder(object):
 	
 	def __init__(self, eyetracker, DEBUG=False, missing_val=-99999.0, cursor=False,
 				 key_calibrate='c', key_preview='p', key_validate='v', targets=VAL_TAR_CR10,
@@ -126,7 +135,7 @@ class VzGazeRecorder():
 		s = {}
 		s['time'] = viz.tick() * 1000.0
 		s['frameno'] = viz.getFrameNumber()
-		s['systime'] = time.clock() * 1000.0
+		s['systime'] = perf_counter() * 1000.0
 
 		# Gaze, target, and view nodes
 		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
@@ -163,14 +172,14 @@ class VzGazeRecorder():
 			vecs['trackVecR'] = vgTR
 
 		# Store position data
-		for lbl, node_matrix in nodes.iteritems():
+		for lbl, node_matrix in nodes.items():
 			p = node_matrix.getPosition()
 			s['{:s}_posX'.format(lbl)] = p[0]
 			s['{:s}_posY'.format(lbl)] = p[1]
 			s['{:s}_posZ'.format(lbl)] = p[2]
 
 		# Store gaze unit direction vectors
-		for lbl, vec in vecs.iteritems():
+		for lbl, vec in vecs.items():
 			s['{:s}_X'.format(lbl)] = vec[0]
 			s['{:s}_Y'.format(lbl)] = vec[1]
 			s['{:s}_Z'.format(lbl)] = vec[2]
@@ -194,7 +203,7 @@ class VzGazeRecorder():
 			node: any Vizard Node3D object
 			label (str): Label for this node in log files
 		"""
-		reserved = ['view', 'tracker', 'gaze', 'gaze3d', 'pupil'] + self._tracked_nodes.keys()
+		reserved = ['view', 'tracker', 'gaze', 'gaze3d', 'pupil'] + list(self._tracked_nodes.keys())
 		if label.lower() in reserved:
 			raise ValueError('Label "{:s}" already exists! Please choose a different label.'.format(label))
 		self._tracked_nodes[label] = node
@@ -648,7 +657,7 @@ class VzGazeRecorder():
 
 		time_ms = viz.tick() * 1000.0		# Vizard time
 		frame = viz.getFrameNumber()		# Vizard frame number
-		clock = time.clock() * 1000.0 		# Python system time
+		clock = perf_counter() * 1000.0 		# Python system time
 
 		# Gaze and view nodes
 		cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
@@ -718,7 +727,7 @@ class VzGazeRecorder():
 			# Record a sample manually 
 			s['time'] = viz.tick() * 1000.0
 			s['frameno'] = viz.getFrameNumber()
-			s['systime'] = time.clock() * 1000.0
+			s['systime'] = perf_counter() * 1000.0
 
 			gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
 			cW = viz.MainView.getMatrix()		# Camera-in-World FoR (Head for HMDs)
@@ -744,7 +753,7 @@ class VzGazeRecorder():
 				nodes[obj] = self._tracked_nodes[obj].getMatrix()
 
 		# Store position and orientation data
-		for lbl, node_matrix in nodes.iteritems():
+		for lbl, node_matrix in nodes.items():
 			p = node_matrix.getPosition()
 			d = node_matrix.getEuler()
 			q = node_matrix.getQuat()

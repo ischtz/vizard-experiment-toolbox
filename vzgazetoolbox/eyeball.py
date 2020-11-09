@@ -12,7 +12,7 @@ _module_path = os.path.split(os.path.abspath(__file__))[0]
 class Eyeball(viz.VizNode):
 	""" Simple eyeball object to visually indicate gaze direction """
 	
-	def __init__(self, radius=0.024, eyecolor='blue', pointer=False, gaze_length=100, visible=True):
+	def __init__(self, radius=0.024, eyecolor='blue', pointer=False, gaze_length=1000, visible=True):
 		""" Initialize a new Eyeball node
 		
 		Args:
@@ -33,13 +33,13 @@ class Eyeball(viz.VizNode):
 		viz.VizNode.__init__(self, eye.id)
 		
 		# Add gaze direction pointer (invisible by default)
-		self.pointer = vizshape.addCylinder(height=gaze_length, radius=0.05, axis=vizshape.AXIS_Z, parent=eye)
-		self.pointer.setPosition([0.0, 0.0, (gaze_length/2)-radius-0.005])
+		self.pointer = vizshape.addCylinder(height=gaze_length, radius=0.25, axis=vizshape.AXIS_Z, parent=eye)
+		self.pointer.setPosition([0.0, 0.0, (gaze_length / 2.0)-radius-0.005])
 		if not pointer:
 			self.pointer.visible(viz.OFF)
 
 		# Set a specific eye color (e.g. for disambiguation)
-		eye.setScale([radius/2,] * 3)
+		eye.setScale([radius / 2.0,] * 3)
 		self.setEyeColor(eyecolor)
 		
 		

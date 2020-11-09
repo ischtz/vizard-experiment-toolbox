@@ -4,6 +4,7 @@
 # Gaze and object position and orientation replay class
 
 import random
+from builtins import object
 
 import viz
 import vizact
@@ -12,7 +13,7 @@ import vizshape
 
 from .eyeball import Eyeball
 
-class VzGazeReplay():
+class VzGazeReplay(object):
 	
 	def __init__(self, recording=None, ui=True, eyeball=True, console=False, eye='BINOCULAR'):
 		""" Gaze and object position and orientation replay class

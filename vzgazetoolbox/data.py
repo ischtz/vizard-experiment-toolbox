@@ -6,6 +6,8 @@
 import json
 import pickle
 
+from builtins import object
+
 try:
 	# Some functionality such as plotting is only available when a scientific 
 	# Python stack is installed, which by default is not the case in Vizard.
@@ -165,7 +167,7 @@ VAL_TAR_SQ15 = [[0.0,  0.0,   6.0],
 
 
 
-class ValidationResult():
+class ValidationResult(object):
 	""" Container to hold results and raw data of a gaze validation sequence 
 	
 	Attributes:
