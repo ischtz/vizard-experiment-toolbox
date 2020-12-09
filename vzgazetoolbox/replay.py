@@ -4,7 +4,6 @@
 # Gaze and object position and orientation replay class
 
 import random
-from builtins import object
 
 import viz
 import vizact

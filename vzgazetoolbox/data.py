@@ -6,8 +6,6 @@
 import json
 import pickle
 
-from builtins import object
-
 try:
 	# Some functionality such as plotting is only available when a scientific 
 	# Python stack is installed, which by default is not the case in Vizard.
@@ -164,6 +162,70 @@ VAL_TAR_SQ15 = [[0.0,  0.0,   6.0],
 				[-5.0, 15.0,  6.0],
 				[5.0, 15.0,   6.0],
 				[10.0, 15.0,  6.0]] # N=49
+
+
+
+class ParamSet(object):
+	""" Stores study or trial parameters that can be accessed 
+	using both key (x['key']) and dot notation (x.key) for 
+	convenience. Supports JSON im-/export. """
+
+	def __init__(self, input_dict=None):
+		if input_dict is not None:
+			self.__dict__ = input_dict.copy()
+	
+	
+	def __getitem__(self, key):
+		return self.__dict__[key]
+	
+	
+	def __setitem__(self, key, value):
+		self.__dict__[key] = value
+
+	
+	def __repr__(self):
+		return repr(self.__dict__)
+	
+	
+	def __str__(self):
+		""" Pretty-print parameters for readability """
+		key_lens = []
+		for key in self.__dict__:
+			key_lens.append(len(key))
+		spacing = max(key_lens)
+		if spacing > 20:
+			spacing = 20
+		s = ''
+		fmt = '{{:{:d}s}}: {{:s}}\n'.format(spacing)
+		for key in sorted(self.__dict__.keys()):
+			s += fmt.format(str(key), str(self.__dict__[key]))
+		return s
+	
+	
+	def __len__(self):
+		return len(self.__dict__)
+	
+	
+	def __iter__(self):
+		return iter(self.__dict__)
+	
+
+	def toJSON(self):
+		""" Return JSON representation of this ParamSet """
+		return json.dumps(self.__dict__)
+
+
+	def toJSONFile(self, json_file):
+		""" Save this ParamSet to a JSON file """
+		with open(json_file, 'w') as jf:
+			jf.write(json.dumps(self.__dict__))
+
+
+	@classmethod
+	def fromJSONFile(cls, json_file):
+		""" Create a new ParamSet from a JSON file """
+		with open(json_file, 'r') as jf:
+			return ParamSet(input_dict=json.load(jf))
 
 
 

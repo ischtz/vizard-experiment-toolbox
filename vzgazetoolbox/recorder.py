@@ -9,7 +9,6 @@ import math
 import copy 
 import random 
 import pickle
-from builtins import object
 
 import viz
 import vizact
