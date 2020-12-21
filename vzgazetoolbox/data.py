@@ -210,6 +210,13 @@ class ParamSet(object):
 		return iter(self.__dict__)
 	
 
+	def __contains__(self, key):
+		if key in self.__dict__.keys():
+			return True
+		else:
+			return False
+
+
 	def toJSON(self):
 		""" Return JSON representation of this ParamSet """
 		return json.dumps(self.__dict__)
