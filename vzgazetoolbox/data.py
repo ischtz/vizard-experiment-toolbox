@@ -172,7 +172,13 @@ class ParamSet(object):
 
     def __init__(self, input_dict=None):
         if input_dict is not None:
-            self.__dict__ = input_dict.copy()
+            if type(input_dict) not in [dict, ParamSet]:
+                raise ValueError('input_dict must be a dict or ParamSet!')
+            
+            if type(input_dict) == ParamSet:
+                self.__dict__ = input_dict.__dict__.copy()    
+            else:
+                self.__dict__ = input_dict.copy()
     
     
     def __getitem__(self, key):
