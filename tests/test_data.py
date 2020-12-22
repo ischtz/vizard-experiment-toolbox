@@ -25,7 +25,7 @@ class TestParamSet(unittest.TestCase):
         for ti in test_inputs:
             self.assertRaises(ValueError, ParamSet, input_dict=ti)
 
-    
+
     def test_item_retrieval(self):
         p = ParamSet()
         
@@ -57,6 +57,14 @@ class TestParamSet(unittest.TestCase):
         self.assertIsInstance(p_new, ParamSet)
         self.assertDictEqual(p_new.__dict__, compare2)
         os.close(fd)
+
+
+    def test_empty_param_set(self):
+
+        p = ParamSet()
+        self.assertEqual(len(p), 0)
+        self.assertEqual(repr(p), '{}')
+        self.assertEqual(str(p), 'Empty parameter set.')
 
 
 if __name__ == '__main__':

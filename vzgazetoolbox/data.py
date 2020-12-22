@@ -195,17 +195,20 @@ class ParamSet(object):
     
     def __str__(self):
         """ Pretty-print parameters for readability """
-        key_lens = []
-        for key in self.__dict__:
-            key_lens.append(len(key))
-        spacing = max(key_lens)
-        if spacing > 20:
-            spacing = 20
-        s = ''
-        fmt = '{{:{:d}s}}: {{:s}}\n'.format(spacing)
-        for key in sorted(self.__dict__.keys()):
-            s += fmt.format(str(key), str(self.__dict__[key]))
-        return s
+        if len(self.__dict__) > 0:
+            key_lens = []
+            for key in self.__dict__:
+                key_lens.append(len(key))
+            spacing = max(key_lens)
+            if spacing > 20:
+                spacing = 20
+            s = ''
+            fmt = '{{:{:d}s}}: {{:s}}\n'.format(spacing)
+            for key in sorted(self.__dict__.keys()):
+                s += fmt.format(str(key), str(self.__dict__[key]))
+            return s
+        else:
+            return('Empty parameter set.')
     
     
     def __len__(self):
