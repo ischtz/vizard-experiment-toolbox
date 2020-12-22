@@ -7,9 +7,9 @@ import sys
 import random
 
 if sys.version_info[0] == 3:
-	from time import perf_counter
+    from time import perf_counter
 else:
-	from time import clock as perf_counter	
+    from time import clock as perf_counter	
 
 import viz
 
