@@ -15,6 +15,11 @@ import viz
 
 from .data import ParamSet
 
+TRIAL_NEW = 0
+TRIAL_STARTED = 10
+TRIAL_DONE = 20
+
+
 
 class Trial(object):
 
@@ -28,12 +33,12 @@ class Trial(object):
             block (int): Presentation block this trial belongs to
         """
         self._start_time = None
-        self._end_time = None
         self._start_tick = None
+        self._end_time = None
         self._end_tick = None
+
         self._index = index
-        self._running = False
-        self._done = False
+        self._state = TRIAL_NEW
 
         self.block = block
 
@@ -51,18 +56,24 @@ class Trial(object):
         blockstr = ''
         if self.block is not None:
             blockstr = ', block {:d}'.format(int(self.block))
-        s = '<Trial (index {:d}{:s})\n'.format(int(self._index), blockstr)
+        if self._state == TRIAL_NEW:
+            statestr = ', never run'
+        elif self._state == TRIAL_STARTED:
+            statestr = ', started'
+        elif self._state == TRIAL_DONE:
+            statestr = ', done'
+        s = '<Trial (index {:d}{:s}{:s})\n'.format(int(self._index), blockstr, statestr)
         s += 'params: {:s}\n'.format(repr(self.params))
         s += 'results: {:s}>\n'.format(repr(self.results))
         return s
 
 
-    def _start(self, index, config):
+    def _start(self, index=0, config=None):
         """ Record trial start time """
         self._index = index
         self._start_tick = viz.tick()
         self._start_time = perf_counter() * 1000.0
-        self._running = True
+        self._state = TRIAL_STARTED
         
         # Allow access to experiment config at run time
         self.config = config
@@ -72,8 +83,7 @@ class Trial(object):
         """ Record trial start time """
         self._end_tick = viz.tick()
         self._end_time = perf_counter() * 1000.0
-        self._running = False
-        self._done = True
+        self._state = TRIAL_DONE
         del self.config
 
 
@@ -92,28 +102,30 @@ class Trial(object):
     @property
     def running(self):
         """ returns True if this trial is currently running """
-        return self._running
+        return self._state == TRIAL_STARTED
 
 
     @property
     def done(self):
         """ returns True if this trial was run """
-        return self._done
+        return self._state >= TRIAL_DONE
 
 
     @property
     def starttime(self):
         """ Return Vizard time stamp of when this trial was started """
-        if self._start_tick is None:
+        if self._state < TRIAL_STARTED:
             e = 'Trying to access start time of a trial that has not been started yet!'
             raise RuntimeError(e)
-        return self._start_tick
+        else:
+            return self._start_tick
 
 
     @property
     def endtime(self):
         """ Return Vizard time stamp of when this trial ended """
-        if self._end_tick is None:
-            e = 'Trying to access end time of a trial that has not been run yet!'
+        if self._state < TRIAL_DONE:
+            e = 'Trying to access end time of a trial that has not been finished!'
             raise RuntimeError(e)
-        return self._end_tick
+        else:
+            return self._end_tick
