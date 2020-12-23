@@ -4,6 +4,8 @@
 # Experiment framework classes
 
 import sys
+import csv
+import copy
 import random
 
 if sys.version_info[0] == 3:
@@ -19,6 +21,320 @@ STATE_NEW = 0
 STATE_STARTED = 10
 STATE_DONE = 20
 
+
+class Experiment(object):
+    
+    def __init__(self, trial_file=None, config=None, debug=False):
+        """ Class to hold an entire VFX experiment. Manages trials, data recording, 
+        and timing. 
+
+        Args:
+            trial_file (str): Optional file name of initial trial parameter file
+            config (dict): Optional initial config parameters
+            debug (bool): it True, print additional debug output
+        """
+        self.trials = []
+        self._blocks = []
+        self._block_trials = {}
+
+        if config is not None:
+            self.config = ParamSet(input_dict=config)
+        else:
+            self.config = ParamSet()
+
+        self._state = STATE_NEW
+        self._cur_trial = 0
+        self._trial_running = False
+        self.debug = debug
+        
+        if trial_file is not None:
+            self.addTrialsFromCSV(trial_file)
+
+
+    def _dlog(self, text):
+        """ Log debug information to console if debug output is enabled 
+        
+        Args:
+            String to print
+        """
+        if self.debug:
+            print('[{:s}] {:.4f} - {:s}'.format('exp', viz.tick(), text))
+
+
+    def addTrials(self, num_trials=1, params={}, block=None):
+        """ Add a specified number of trials. The contents of
+        the 'params' dict are copied to each trial. You can then further
+        modify each trial individually using its 'params' attribute.
+
+        Args:
+            num_trials (int): Number of trials to create
+            params (dict): Parameter values to set in all trials
+            block (int): Optional block number to group trials into blocks
+        """
+        if block is None:
+            block = 0
+        for t in range(0, num_trials):
+            self.trials.append(Trial(params=params, index=t, block=block))
+        self._updateBlocks()
+        self._dlog('Adding {:d} trials: {:s}'.format(num_trials, str(params)))
+
+
+    def addTrialsFromCSV(self, file_name, sep='\t', block=None, block_col=None):
+        """ Read a list of trials from a CSV file, adding the columns
+        as parameter values to each trial (one trial per row).
+
+        Args:
+            file_name (str): name of CSV file to read
+            sep (str): column separator
+            block (int): Block number to assign to trials (overrides block_col)
+            block_col (str): Column name to use for block numbering
+        """
+        trial_no = 0
+        with open(file_name, 'r') as tf:
+            reader = csv.DictReader(tf, delimiter=sep)
+            for row in reader:
+                params = {}
+                for h in reader.fieldnames:
+
+                    # Convert numeric values
+                    data = row[h]
+                    try:
+                        params[h] = int(data)
+                    except ValueError:
+                        try:
+                            params[h] = float(data)
+                        except ValueError:
+                            params[h] = data
+
+                if block is None:
+                    if block_col is not None:
+                        # Use column if no block number specified
+                        if block_col not in params.keys():
+                            s = 'addTrialsFromCSV: Block variable "{:s}" not found in input file!'
+                            raise ValueError(s.format(block_col))
+                        else:
+                            bl = int(params[block_col])
+
+                    elif block_col is None:
+                        # Nothing specified, use default (0)
+                        bl = 0
+                else:
+                    # Use block argument if present (overrides column)
+                    bl = int(block)
+
+                self.trials.append(Trial(params=params, index=trial_no, block=bl))
+                trial_no += 1
+
+        self._updateBlocks()
+
+        if '_trial_input_files' not in self.config:
+            self.config['_trial_input_files'] = []
+        self.config['_trial_input_files'].append(file_name)
+        self._dlog('Adding {:d} trials from file: {:s}'.format(trial_no, file_name))
+
+
+    def clearTrials(self):
+        """ Remove all current trials from the experiment """
+        self.trials = []
+        self._updateBlocks()
+        self._dlog('Trials cleared.')
+
+    
+    def randomizeTrials(self, across_blocks=False):
+        """ Shuffle trial order globally or within blocks 
+        
+        Args:
+            across_blocks (bool): if True, shuffle all trials 
+                irrespective of their block number
+        """
+        if self._state == STATE_STARTED:
+            raise ValueError('Cannot randomize trials while experiment is in progress!')
+        else:
+            self._updateBlocks()
+            if self.trials is not None:
+                if across_blocks:
+                    random.shuffle(self.trials)
+                    self._dlog('Trials randomized across blocks.')
+                else:
+                    shuffled_trials = []
+                    for block in copy.deepcopy(self._blocks):
+                        btrials = self._block_trials[block]
+                        random.shuffle(btrials)
+                        shuffled_trials.extend(btrials)
+                    self.trials = shuffled_trials
+                    self._dlog('Trials randomized.')
+    
+
+    def _updateBlocks(self):
+        """ Rebuild experiment list of blocks and corresponding trials """
+        self._blocks = []
+        self._block_trials = {}
+
+        if self.trials is not None and len(self.trials) > 0:
+            for t in self.trials:
+                if t.block not in self._blocks:
+                    self._blocks.append(t.block)
+                if t.block not in self._block_trials.keys():
+                    self._block_trials[t.block] = []
+                self._block_trials[t.block].append(t)
+            self._blocks.sort()
+    
+
+    def __repr__(self):
+        s = '<Experiment, {:d} trials'
+        if len(self._blocks) > 0:
+            s += ', {:d} block(s) {:s}'.format(len(self._blocks), str(self._blocks))
+        s += '>'
+        return s.format(len(self.trials))
+
+
+    def __len__(self):
+        """ Return 'length' of Experiment, i.e., number of trials """
+        return len(self.trials)
+
+
+    def __iter__(self):
+        return iter(self.trials)
+
+
+    @property
+    def running(self):
+        """ returns True if experiment is currently running """
+        return self._state == STATE_STARTED
+
+
+    @property
+    def done(self):
+        """ returns True if all trials have been run """
+        return self._state >= STATE_DONE
+
+
+    @property
+    def blocks(self):
+        """ List of trial blocks in this experiment """
+        self._updateBlocks()
+        return copy.deepcopy(self._blocks)
+
+
+    @property
+    def currentTrial(self):
+        """ Return the current trial object if experiment is running """
+        if self._trial_running:
+            return self.trials[self._cur_trial]
+        else:
+            raise RuntimeError('Tried to access the current trial while no trial was running')
+
+
+    @property
+    def currentTrialNumber(self):
+        """ Return the current trial number if experiment is running """
+        if self._trial_running:
+            return self._cur_trial
+        else:
+            raise RuntimeError('Tried to access the current trial while no trial was running')
+
+
+    def startNextTrial(self):
+        """ Start the next trial in the trial list, if any """
+        if self._trial_running:
+            raise RuntimeError('Cannot start a trial while another trial is in progress!')
+
+        if self._cur_trial == 0 and not self.trials[self._cur_trial].done:
+            trial_idx = 0   # first trial
+
+        elif self._cur_trial + 1 >= len(self.trials):
+            self._state == STATE_DONE
+            raise RuntimeError('No further trials remaining in trial list.')
+
+        else:
+            trial_idx = self._cur_trial + 1
+
+        self.startTrial(trial_idx=trial_idx)
+
+    
+    def startTrial(self, trial_idx, repeat=False):
+        """ Start a specific trial by its trial list index. 
+
+        Args:
+            trial_idx: Trial object or index of trial to run
+            repeat (bool): if True, allow repetition of an already finished trial
+        """
+        if self._trial_running:
+            raise RuntimeError('Cannot start a trial while another trial is in progress!')
+
+        if type(trial_idx) == Trial:
+            trial_idx = trial_idx.index
+
+        if self.trials[trial_idx].done and not repeat:
+            s = 'Trial {:d} has already been run, set repeat=True to force repeat!'.format(trial_idx)
+            raise RuntimeError(s)
+
+        self._cur_trial = trial_idx
+        if self._state < STATE_STARTED:
+            self._state = STATE_STARTED
+        
+        param_str = ''
+        if len(self.trials[trial_idx].params) > 0:
+            param_str = ': ' + repr(self.trials[trial_idx].params)
+        self._dlog('Starting trial {:d}{:s}'.format(trial_idx, param_str))
+        self.trials[trial_idx]._start(index=trial_idx)
+        self._trial_running = True
+
+
+    def endCurrentTrial(self):
+        """ End the currently running trial """
+        if not self._trial_running:
+            raise RuntimeError('There is no running trial to be ended!')
+
+        self.trials[self._cur_trial]._end()
+        if self._cur_trial + 1 >= len(self.trials):
+            # Stop experiment if this was the last trial
+            self._state = STATE_DONE
+        self._dlog('Ended trial {:d}'.format(self._cur_trial))
+        self._trial_running = False
+
+
+    def saveTrialData(self, file_name, sep='\t'):
+        """ Shortcut to saveTrialDataToCSV 
+        
+        Args:
+            file_name (str): Name of CSV file to write to
+            sep (str): Field separator string (default: Tab)
+        """
+        self.saveTrialDataToCSV(file_name, sep)
+
+
+    def saveTrialDataToCSV(self, file_name, sep='\t'):
+        """ Saves trial parameters and results to CSV file
+
+        Args:
+            file_name (str): Name of CSV file to write to
+            sep (str): Field separator string (default: Tab)
+        """
+        all_keys = []
+        tdicts = []
+        for t in self.trials:
+            td = dict(t.params)
+            td.update(dict(t.results))
+            td['_start_tick'] = t._start_tick
+            td['_end_tick'] = t._end_tick
+            td['_start_time'] = t._start_time
+            td['_end_time'] = t._end_time
+            td['_original_idx'] = t._index
+            
+            # Collect superset of all param and result keys
+            for key in list(td.keys()):
+                if key not in all_keys:
+                    all_keys.append(key)
+            tdicts.append(td)
+
+        all_keys.sort()
+        with open(file_name, 'w') as of:
+            writer = csv.DictWriter(of, delimiter=sep, lineterminator='\n', 
+                                    fieldnames=all_keys)
+            writer.writeheader()
+            for td in tdicts:
+                writer.writerow(td)
 
 
 class Trial(object):
