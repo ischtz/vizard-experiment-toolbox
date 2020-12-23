@@ -216,8 +216,9 @@ class ParamSet(object):
     
     
     def __iter__(self):
-        return iter(self.__dict__)
-    
+        """ Iteration returns parameters as (key, value) tuples """
+        return iter(zip(self.__dict__.keys(), self.__dict__.values()))
+
 
     def __contains__(self, key):
         if key in self.__dict__.keys():

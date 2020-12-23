@@ -67,5 +67,14 @@ class TestParamSet(unittest.TestCase):
         self.assertEqual(str(p), 'Empty parameter set.')
 
 
+    def test_dict_conversion(self):
+
+        p = ParamSet()
+        p.abc = 123
+        p.foo = False
+        self.assertDictEqual(dict(p), {'abc': 123, 'foo': False})
+
+
+
 if __name__ == '__main__':
     unittest.main()
