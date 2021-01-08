@@ -655,6 +655,23 @@ class VzGazeRecorder(object):
         viztask.returnValue(self._last_val_result)
 
 
+    def checkDrift(self, threshold=1.5, auto_calibrate=True):
+        """ Run single-target validation to check for eye tracker drift. 
+
+        Args:
+            threshold (float): Accuracy (gaze error) above which drift check is failed
+            auto_calibrate (bool): if True, run calibration automatically when failed
+        """
+        val_res = yield self.validate(targets=VAL_TAR_C, dur=2000, tar_color=[1.0, 1.0, 1.0])
+        if val_res.acc > threshold:
+            self._dlog('Drift check FAILED, acc = {:.2f}°'.format(val_res.acc))
+            if auto_calibrate:
+                yield self.calibrate()
+        else:
+            self._dlog('Drift check PASSED, acc = {:.2f}°'.format(val_res.acc))
+        viztask.returnValue(val_res.acc)
+
+    
     def _onUpdate(self):
         """ Task callback that runs on each display frame. Always updates 
         current gaze data properties, triggers sample recording if recording is on.
