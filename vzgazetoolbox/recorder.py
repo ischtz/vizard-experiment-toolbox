@@ -285,6 +285,8 @@ class VzGazeRecorder(object):
             cursor (bool): if True, show gaze cursor during preview
         """
         prev_scene = viz.MainWindow.getScene()
+        prev_headlight_state = viz.MainView.getHeadLight().getEnabled()
+        viz.MainView.getHeadLight().enable()
         viz.MainWindow.setScene(self._scene)
         root = viz.addGroup(scene=self._scene)
 
@@ -351,6 +353,8 @@ class VzGazeRecorder(object):
             self._cursor.removeParent(viz.WORLD, scene=self._scene)
             self.showGazeCursor(cursor_state)
         root.remove(children=True)
+        if not prev_headlight_state:
+            viz.MainView.getHeadLight().disable()
         viz.MainWindow.setScene(prev_scene)
         self._dlog('Original scene returned')
 
@@ -432,6 +436,8 @@ class VzGazeRecorder(object):
         t_link = viz.link(viz.MainView, root, enabled=True)
         prev_scene = viz.MainWindow.getScene()
         viz.MainWindow.setScene(self._scene)
+        prev_headlight_state = viz.MainView.getHeadLight().getEnabled()
+        viz.MainView.getHeadLight().enable()
         self._dlog('Validation scene set up complete')
         
         # Initialize validation recorder
@@ -629,6 +635,8 @@ class VzGazeRecorder(object):
 
         # Clear and return to previous scene
         root.remove(children=True)
+        if not prev_headlight_state:
+            viz.MainView.getHeadLight().disable()
         viz.MainWindow.setScene(prev_scene)
         self._dlog('Original scene returned')
 
