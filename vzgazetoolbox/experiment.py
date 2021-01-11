@@ -3,6 +3,7 @@
 # Vizard gaze tracking toolbox
 # Experiment framework classes
 
+import os
 import sys
 import csv
 import copy
@@ -38,7 +39,13 @@ class Experiment(object):
         self._block_trials = {}
 
         if config is not None:
-            self.config = ParamSet(input_dict=config)
+            if type(config) == str:
+                try:
+                    self.config = ParamSet.fromJSONFile(config)
+                except ValueError:
+                    raise ValueError('Passed config file must be a valid JSON file!')
+            else:
+                self.config = ParamSet(input_dict=config)
         else:
             self.config = ParamSet()
 

@@ -40,6 +40,32 @@ class TestTrial(unittest.TestCase):
 
 class TestExperiment(unittest.TestCase):
 
+    def test_config(self):
+
+        TESTSDIR = os.path.dirname(os.path.abspath(__file__))
+        dummy_csv = os.path.join(TESTSDIR, 'dummy_trials.csv')
+        dummy_json = os.path.join(TESTSDIR, 'dummy_config.json')
+
+        # Config from dict
+        test_config_dict = {'param1': 123.5, 'param2': False}
+        e = Experiment(config=test_config_dict)
+        self.assertEqual(e.config.param1, 123.5)
+        self.assertFalse(e.config.param2)
+
+        # Config from file
+        e2 = Experiment(config=dummy_json)
+        self.assertEqual(e2.config.param1, 123.5)
+        self.assertFalse(e2.config.param2)
+
+        # Config from nonexistant file
+        with self.assertRaises(IOError):
+            e = Experiment(config='NOT_A_REAL_CONFIG_FILE.dummy')
+
+        # Config from existing but non-JSON file
+        with self.assertRaises(ValueError):
+            e = Experiment(config=dummy_csv)
+
+
     def test_add_trials(self):
 
         e = Experiment()
