@@ -61,8 +61,8 @@ def Main():
 	# Run your eye tracker's default calibration method
 	eyeTracker.calibrate()
 
-	# Instantiate a VzGazeRecorder object that will record in the background
-	rec = vzgazetoolbox.VzGazeRecorder(eyeTracker, DEBUG=True)
+	# Instantiate a sample recorder object that will record in the background
+	rec = vzgazetoolbox.SampleRecorder(eyeTracker, DEBUG=True)
 	
 	# Set up a key callback to show/hide the gaze cursor in debug mode
 	vizact.onkeydown(' ', rec.showGazeCursor, viz.TOGGLE)

@@ -55,9 +55,9 @@ def Main():
 	# Run your eye tracker's default calibration method
 	eyeTracker.calibrate()
 
-	# Instantiate a VzGazeRecorder object to handle validation
-	rec = vzgazetoolbox.VzGazeRecorder(eyeTracker, DEBUG=True)
-	
+	# Instantiate a sample recorder object to handle validation
+	rec = vzgazetoolbox.SampleRecorder(eyeTracker, DEBUG=True)
+
 	# This will preview a set of gaze targets without validating,
 	# press SPACE to continue
 	yield rec.previewTargets(targets=targets)

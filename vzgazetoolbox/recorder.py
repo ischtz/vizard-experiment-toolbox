@@ -27,8 +27,8 @@ else:
     from time import clock as perf_counter	
 
 
-class VzGazeRecorder(object):
-    
+class SampleRecorder(object):
+
     def __init__(self, eyetracker, DEBUG=False, missing_val=-99999.0, cursor=False,
                  key_calibrate='c', key_preview='p', key_validate='v', targets=VAL_TAR_CR10,
                  prealloc=324000):
@@ -109,7 +109,7 @@ class VzGazeRecorder(object):
             String to print
         """
         if self.debug:
-            print('[{:s}] {:.4f} - {:s}'.format('VZGAZE', viz.tick(), text))
+            print('[{:s}] {:.4f} - {:s}'.format('REC', viz.tick(), text))
             
 
     def _deg2m(self, x, d):

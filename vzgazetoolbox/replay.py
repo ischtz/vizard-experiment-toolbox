@@ -12,14 +12,14 @@ import vizshape
 
 from .eyeball import Eyeball
 
-class VzGazeReplay(object):
+class SampleReplay(object):
     
     def __init__(self, recording=None, ui=True, eyeball=True, console=False, eye='BINOCULAR'):
         """ Gaze and object position and orientation replay class
         
         Args:
             recording: file name of a CSV recording file to load, OR
-                VzGazeRecorder instance to get sample data from
+                SampleRecorder instance to get sample data from
             ui (bool): if True, display a vizinfo panel with replay status
             eyeball (bool): if True, show Eyeball shape, else use axes object
             console (bool): if True, print timing and position data of current frame to console
@@ -135,7 +135,7 @@ class VzGazeReplay(object):
 
 
     def loadRecording(self, sample_file, sep='\t'):
-        """ Load a VzGazeRecorder sample file for replay
+        """ Load a SampleRecorder sample file for replay
         
         Args:
             sample_file (str): Filename of CSV file to load
