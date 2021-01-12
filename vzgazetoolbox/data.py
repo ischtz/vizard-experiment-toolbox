@@ -19,10 +19,10 @@ except ImportError:
 
 
 # single central target (default)
-VAL_TAR_C =		[[0.0,  0.0,  6.0]]	
+VAL_TAR_C =		[[0.0,  0.0,  6.0]]
 
 # 5-point cross at +/- 5 deg, 6m distance
-VAL_TAR_CR5 =  [[0.0,  0.0,  6.0],	
+VAL_TAR_CR5 =  [[0.0,  0.0,  6.0],
                 [5.0,  0.0,  6.0],
                 [0.0,  -5.0, 6.0],
                 [-5.0, 0.0,  6.0],
@@ -40,7 +40,7 @@ VAL_TAR_SQ5 =  [[0.0,  0.0,  6.0],
                 [-5.0,  5.0, 6.0]] # N=9
 
 # 5x5 major positions, +/- 10 deg, 6m distance
-VAL_TAR_CR10 = [[0.0,  0.0,  6.0],	
+VAL_TAR_CR10 = [[0.0,  0.0,  6.0],
                 [5.0,  0.0,  6.0],
                 [0.0,  -5.0, 6.0],
                 [-5.0, 0.0,  6.0],
@@ -59,7 +59,7 @@ VAL_TAR_CR10 = [[0.0,  0.0,  6.0],
                 [-10.0, 10.0, 6.0]] # N=17
 
 # 5x5 full square, +/- 10 deg, 6m distance
-VAL_TAR_SQ10 = [[0.0,  0.0,   6.0],	
+VAL_TAR_SQ10 = [[0.0,  0.0,   6.0],
                 [5.0,  0.0,   6.0],
                 [0.0,  -5.0,  6.0],
                 [-5.0, 0.0,   6.0],
@@ -79,10 +79,10 @@ VAL_TAR_SQ10 = [[0.0,  0.0,   6.0],
                 [10.0, 5.0,   6.0],
                 [10.0, -5.0,  6.0],
                 [5.0, -10.0,  6.0],
-                [-5.0, -10.0, 6.0],				
+                [-5.0, -10.0, 6.0],
                 [-10.0, -5.0, 6.0],
                 [-10.0, 5.0,  6.0],
-                [-5.0, 10.0,  6.0], 
+                [-5.0, 10.0,  6.0],
                 [5.0, 10.0,   6.0]] # N=25
 
 # 7x7 major positions, +/- 15 deg, 6m distance
@@ -136,7 +136,7 @@ VAL_TAR_SQ15 = [[0.0,  0.0,   6.0],
                 [-5.0, -10.0, 6.0],
                 [-10.0, -5.0, 6.0],
                 [-10.0, 5.0,  6.0],
-                [-5.0, 10.0,  6.0], 
+                [-5.0, 10.0,  6.0],
                 [5.0, 10.0,   6.0],
                 [15.0, 0.0,   6.0],
                 [0.0, -15.0,  6.0],
@@ -176,7 +176,7 @@ class ParamSet(object):
                 raise ValueError('input_dict must be a dict or ParamSet!')
             
             if type(input_dict) == ParamSet:
-                self.__dict__ = input_dict.__dict__.copy()    
+                self.__dict__ = input_dict.__dict__.copy()
             else:
                 self.__dict__ = input_dict.copy()
     

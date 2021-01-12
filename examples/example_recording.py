@@ -26,7 +26,7 @@ viz.go()
 # Initialize SteamVR HMD
 hmd = steamvr.HMD()
 if not hmd.getSensor():
-	sys.exit('SteamVR HMD not detected!')
+    sys.exit('SteamVR HMD not detected!')
 navigationNode = viz.addGroup()
 viewLink = viz.link(navigationNode, viz.MainView)
 viewLink.preMultLinkable(hmd.getSensor())
@@ -36,7 +36,7 @@ viewLink.preMultLinkable(hmd.getSensor())
 VivePro = viz.add('VivePro.dle')
 eyeTracker = VivePro.addEyeTracker()
 if not eyeTracker:
-	sys.exit('Eye tracker not detected!')
+    sys.exit('Eye tracker not detected!')
 
 # Set up a simple scene containing a few random cubes
 viz.addChild('ground_wood.osgb')
@@ -44,39 +44,39 @@ viz.MainView.getHeadLight().disable()
 viz.addLight(euler=(30, 0, 0), color=viz.WHITE)
 viz.addLight(euler=(-30, 0, 0), color=viz.WHITE)
 for c in range(0, 15):
-	size = random.random() * 1.0
-	pos = [(random.random() - 0.5) * 10,
-			float(size) / 2,
-			(random.random() * 10) + 2.0]
-	color = [random.random(), random.random(), random.random()]
-	
-	cube = vizshape.addCube(size=size)
-	cube.setPosition(pos)
-	cube.color(color)
+    size = random.random() * 1.0
+    pos = [(random.random() - 0.5) * 10,
+            float(size) / 2,
+            (random.random() * 10) + 2.0]
+    color = [random.random(), random.random(), random.random()]
+    
+    cube = vizshape.addCube(size=size)
+    cube.setPosition(pos)
+    cube.color(color)
 
 
 
 def Main():
 
-	# Run your eye tracker's default calibration method
-	eyeTracker.calibrate()
+    # Run your eye tracker's default calibration method
+    eyeTracker.calibrate()
 
-	# Instantiate a sample recorder object that will record in the background
-	rec = vzgazetoolbox.SampleRecorder(eyeTracker, DEBUG=True)
-	
-	# Set up a key callback to show/hide the gaze cursor in debug mode
-	vizact.onkeydown(' ', rec.showGazeCursor, viz.TOGGLE)
-	rec.showGazeCursor(True)
-	
-	# Record gaze data for 30 seconds
-	yield rec.startRecording()
-	yield viztask.waitTime(30)
-	yield rec.stopRecording()
-	
-	# Save recorded gaze samples and events to CSV files
-	yield rec.saveRecording('samples.csv', 'events.csv')
+    # Instantiate a sample recorder object that will record in the background
+    rec = vzgazetoolbox.SampleRecorder(eyeTracker, DEBUG=True)
+    
+    # Set up a key callback to show/hide the gaze cursor in debug mode
+    vizact.onkeydown(' ', rec.showGazeCursor, viz.TOGGLE)
+    rec.showGazeCursor(True)
+    
+    # Record gaze data for 30 seconds
+    yield rec.startRecording()
+    yield viztask.waitTime(30)
+    yield rec.stopRecording()
+    
+    # Save recorded gaze samples and events to CSV files
+    yield rec.saveRecording('samples.csv', 'events.csv')
 
-	viz.quit()
+    viz.quit()
 
 
 viztask.schedule(Main)
