@@ -4,6 +4,7 @@
 # Gaze and object position and orientation replay class
 
 import random
+import colorsys
 
 import viz
 import vizact
@@ -114,8 +115,7 @@ class SampleReplay(object):
 
     def _update_nodes(self):
         """ Create replay node objects and UI items """
-        COLORS = [viz.GREEN, viz.BLUE, viz.YELLOW, viz.GRAY, viz.WHITE]
-        COLOR_IDX = 0
+        COLORS = {'gaze3d': viz.RED, 'view': viz.BLUE}
 
         # Remove all previous checkbox UI objects
         if self._ui is not None: 
@@ -125,14 +125,14 @@ class SampleReplay(object):
 
         for node in self.replay_nodes:
             self._nodes[node] = {'visible': True}
-            if node == 'gaze3d':
-                # Gaze3d is always red for consistency
-                self._nodes[node]['color'] = [1.0, 0.0, 0.0]
+            if node in COLORS:
+                # Consistent colors for built-in nodes
+                self._nodes[node]['color'] = COLORS[node]
             else:
-                self._nodes[node]['color'] = COLORS[COLOR_IDX]
-                COLOR_IDX += 1
-                if COLOR_IDX > len(COLORS):
-                    COLOR_IDX = 0
+                # Generate a random color
+                self._nodes[node]['color'] = colorsys.hsv_to_rgb(random.uniform(0.0, 1.0), 
+                                                                 random.uniform(0.4, 1.0), 
+                                                                 random.uniform(0.5, 1.0))
             self._nodes[node]['obj'] = vizshape.addSphere(radius=0.01, color=self._nodes[node]['color'])
 
             if self._ui is not None:
