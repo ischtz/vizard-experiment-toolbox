@@ -4,6 +4,7 @@
 # Gaze and object tracking and recording class
 
 import sys
+import csv
 import time
 import math
 import copy 
@@ -931,13 +932,11 @@ class SampleRecorder(object):
         """
         # Samples: select keys to be exported and build file format
         fields = ['time', 'systime', 'view_posX', 'view_posY', 'view_posZ', 'view_dirX', 'view_dirY', 'view_dirZ']
-        fmt = ['{:.4f}', '{:.4f}'] + ['{:.5f}',] * 6
 
         # Eye tracker fields
         if self._tracker is not None:
             fields += ['gaze_posX', 'gaze_posY', 'gaze_posZ', 'gaze_dirX', 'gaze_dirY', 'gaze_dirZ',
                        'gaze3d_valid', 'gaze3d_posX', 'gaze3d_posY', 'gaze3d_posZ', 'gaze3d_object']
-            fmt += ['{:.5f}',] * 6 + ['{:d}',] + ['{:.5f}',] * 3 + ['"{:s}"',]
 
             # Tracker-specific fields (not always available)
             special = ['gazeL_posX', 'gazeL_posY', 'gazeL_posZ', 'gazeL_dirX', 'gazeL_dirY', 'gazeL_dirZ',
@@ -946,74 +945,55 @@ class SampleRecorder(object):
             for field in special:
                 if field in self._samples[0].keys():
                     fields += [field,]
-                    fmt += ['{:.5f}',]
 
         # Additional tracked nodes
         for lbl in self._tracked_nodes.keys():
             fields += ['{:s}_posX'.format(lbl), '{:s}_posY'.format(lbl), '{:s}_posZ'.format(lbl), 
                        '{:s}_dirX'.format(lbl), '{:s}_dirY'.format(lbl), '{:s}_dirZ'.format(lbl)]
-            fmt += ['{:.5f}',] * 6
 
         # Quaternions (optional)
         if quat:
             fields += ['view_quatX', 'view_quatY', 'view_quatZ', 'view_quatW']
-            fmt += ['{:.5f}',] * 4
             if self._tracker is not None:
                 fields += ['gaze_quatX', 'gaze_quatY', 'gaze_quatZ', 'gaze_quatW']
-                fmt += ['{:.5f}',] * 4
             for lbl in self._tracked_nodes.keys():
                 fields += ['{:s}_quatX'.format(lbl), '{:s}_quatY'.format(lbl), '{:s}_quatZ'.format(lbl), '{:s}_quatW'.format(lbl)]
-                fmt += ['{:.5f}',] * 4
 
         if self.debug and self._tracker is not None:
             fields += ['tracker_posX', 'tracker_posY', 'tracker_posZ', 'tracker_dirX', 'tracker_dirY', 'tracker_dirZ']
-            fmt += ['{:.5f}',] * 6
             if self._tracker_has_eye_flag:
                 fields += ['trackerL_posX', 'trackerL_posY', 'trackerL_posZ', 'trackerL_dirX', 'trackerL_dirY', 'trackerL_dirZ',
                            'trackerR_posX', 'trackerR_posY', 'trackerR_posZ', 'trackerR_dirX', 'trackerR_dirY', 'trackerR_dirZ']
-                fmt += ['{:.5f}',] * 12
 
             if quat:
                 fields += ['tracker_quatX', 'tracker_quatY', 'tracker_quatZ', 'tracker_quatW']
-                fmt += ['{:.5f}',] * 4
                 if self._tracker_has_eye_flag:
                     fields += ['trackerL_quatX', 'trackerL_quatY', 'trackerL_quatZ', 'trackerL_quatW',
                                'trackerR_quatX', 'trackerR_quatY', 'trackerR_quatZ', 'trackerR_quatW']
-                    fmt += ['{:.5f}',] * 8
 
-
-        HEADER = sep.join(fields) + '\n'
-        ROWFMT = sep.join(fmt) + '\n'
-        
-        # Events: build header
-        evfields = ['time', 'message']
-        EHEADER = sep.join(evfields) + '\n'
-        EROWFMT = sep.join(['{:.4f}', '"{:s}"']) + '\n'
-        
+        # Samples
         if sample_file is not None:
-
             # Cut recording to size if below preallocation limit
             if self._samples_idx < self._prealloc:
                 self._samples = self._samples[0:self._samples_idx]
-            
-            n = 0
-            with open(sample_file, 'w') as of:
-                of.write(HEADER)
-                for sample in self._samples:
-                    row = [sample[f] for f in fields]
-                    of.write(ROWFMT.format(*row))
-                    n += 1
-            self._dlog('Saved {:d} samples to file: {:s}'.format(n, sample_file))
 
+            with open(sample_file, 'w') as of:
+                writer = csv.DictWriter(of, delimiter=sep, lineterminator='\n', 
+                                        fieldnames=fields, extrasaction='ignore')
+                writer.writeheader()
+                for sample in self._samples:
+                    writer.writerow(sample)
+            self._dlog('Saved {:d} samples to file: {:s}'.format(len(self._samples), sample_file))
+
+        # Events
+        evfields = ['time', 'message']    
         if event_file is not None:
-            n = 0
             with open(event_file, 'w') as ef:
-                ef.write(EHEADER)
+                writer = csv.DictWriter(ef, delimiter=sep, lineterminator='\n', fieldnames=evfields)
+                writer.writeheader()
                 for event in self._events:
-                    ev = [event[f] for f in evfields]
-                    ef.write(EROWFMT.format(*ev))
-                    n += 1
-            self._dlog('Saved {:d} events to file: {:s}'.format(n, event_file))
+                    writer.writerow(event)
+            self._dlog('Saved {:d} events to file: {:s}'.format(len(self._events), event_file))
 
         if sample_file is None and event_file is None:
             self._dlog('Neither sample_file nor event_file were specified. No data saved.')

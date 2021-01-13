@@ -3,6 +3,7 @@
 # Vizard gaze tracking toolbox
 # Gaze and object position and orientation replay class
 
+import csv
 import random
 import colorsys
 
@@ -238,18 +239,22 @@ class SampleReplay(object):
             sep (str): Field separator in CSV input file
         """
         s = []
-        HEADER = []
         with open(sample_file, 'r') as sf:
-            HEADER = sf.readline().strip('\n').split(sep)
-            
-            for line in sf.readlines():
+            reader = csv.DictReader(sf, delimiter=sep)
+            HEADER = reader.fieldnames
+            for row in reader:
                 sample = {}
-                l = line.split(sep)
-                for idx, field in enumerate(HEADER):
+                for field in reader.fieldnames:
+
+                    # Convert numeric values
+                    data = row[field]
                     try:
-                        sample[field] = float(l[idx])
+                        sample[field] = int(data)
                     except ValueError:
-                        sample[field] = l[idx]
+                        try:
+                            sample[field] = float(data)
+                        except ValueError:
+                            sample[field] = data
                 s.append(sample)
 
         self._samples = s
