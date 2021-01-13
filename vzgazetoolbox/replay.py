@@ -14,7 +14,8 @@ from .eyeball import Eyeball
 
 class SampleReplay(object):
     
-    def __init__(self, recording=None, ui=True, eyeball=True, console=False, eye='BINOCULAR'):
+    def __init__(self, recording=None, ui=True, eyeball=True, console=False, eye='BINOCULAR',
+                 replay_view=True):
         """ Gaze and object position and orientation replay class
         
         Args:
@@ -23,12 +24,14 @@ class SampleReplay(object):
             ui (bool): if True, display a vizinfo panel with replay status
             eyeball (bool): if True, show Eyeball shape, else use axes object
             console (bool): if True, print timing and position data of current frame to console
-            eye: controls how to show eye position and gaze data:
-                - viz.LEFT_EYE or "LEFT_EYE": show only left eye gaze data
+            eye: controls how to show eye position and gaze data, if available:
+                - viz.LEFT_EYE or "LEFT_EYE": show only left eye gaze data  
                 - viz.RIGHT_EYE or "RIGHT_EYE": show only right eye gaze data
                 - viz.BOTH_EYE or "BOTH_EYE": show only the averaged (cyclopean) gaze data
                 - "BINOCULAR": show both eyes with individual gaze data (default if available)
-                Note: "BOTH_EYE" will be used if input file only contains averaged gaze data!
+                    Note: "BOTH_EYE" will be used if input file only contains averaged gaze data!
+                - None: do not replay gaze data, even if it is available in the recording
+            replay_view (bool): if True, move the MainView with recorded sample data
         """
         # Visualization objects
         if eyeball:
@@ -46,6 +49,7 @@ class SampleReplay(object):
         self.replaying = False
         self.finished = False
         self.console = console
+        self.replay_view = replay_view
 
         self.replay_nodes = []
         self._nodes = {}
@@ -58,15 +62,20 @@ class SampleReplay(object):
             self.eye = 'BOTH_EYE'
         else:
             self.eye = eye
-        if self.eye not in ['LEFT_EYE', 'RIGHT_EYE', 'BOTH_EYE', 'BINOCULAR']:
+        if self.eye not in ['LEFT_EYE', 'RIGHT_EYE', 'BOTH_EYE', 'BINOCULAR', None]:
             raise ValueError('Unknown eye parameter specified: {:s}'.format(self.eye))
 
         # Set up status GUI
         self._ui = None
         if ui:
-            self._ui = vizinfo.InfoPanel('Gaze Data Replay', align=viz.ALIGN_RIGHT_TOP)
+            self._ui = vizinfo.InfoPanel('Sample Data Replay', align=viz.ALIGN_RIGHT_TOP)
             self._ui_bar = self._ui.addItem(viz.addProgressBar('0/0'))
             self._ui_time = self._ui.addLabelItem('Time', viz.addText('NA'))
+            self._ui.addSeparator()
+            self._ui_view = self._ui.addLabelItem('Replay view', viz.addCheckbox())
+            self._ui_view.set(self.replay_view)
+            vizact.onbuttonup(self._ui_view, self.setMainViewReplay, False)
+            vizact.onbuttondown(self._ui_view, self.setMainViewReplay, True)
             self._ui.addSeparator()
             self._ui.addItem(viz.addText('Available Nodes:'))
             self._set_ui()
@@ -226,7 +235,11 @@ class SampleReplay(object):
         f = self._samples[self._frame]
 
         # Set up eye representation(s)
-        if self.eye == 'LEFT_EYE':
+        if self.eye is None:
+            self._eye1.visible(False)
+            self._eye2.visible(False)
+
+        elif self.eye == 'LEFT_EYE':
             eye_mat = viz.Matrix()
             eye_mat.setEuler([f['gazeL_dirX'], f['gazeL_dirY'], f['gazeL_dirZ']])
             eye_mat.setPosition([f['gazeL_posX'], f['gazeL_posY'], f['gazeL_posZ']])
@@ -263,6 +276,10 @@ class SampleReplay(object):
         for node in self._nodes.keys():
             if self._nodes[node]['visible']:
                 self._nodes[node]['obj'].setPosition([f['{:s}_posX'.format(node)], f['{:s}_posY'.format(node)], f['{:s}_posZ'.format(node)]])
+
+        if self.replay_view:
+            viz.MainView.setEuler([f['view_dirX'], f['view_dirY'], f['view_dirZ']])
+            viz.MainView.setPosition([f['view_posX'], f['view_posY'], f['view_posZ']])
 
         self._set_ui()
         if self.console:
@@ -305,3 +322,13 @@ class SampleReplay(object):
         self._nodes[node]['visible'] = visible
         self._nodes[node]['obj'].visible(visible)
         self._nodes[node]['ui'].set(int(visible))
+
+
+    def setMainViewReplay(self, enabled=True):
+        """ Controls whether the replay viewport will move with 
+        recorded position and orientation data. 
+
+        Args:
+            enabled (bool): if True, move MainView with replay data """
+        self.replay_view = enabled
+
