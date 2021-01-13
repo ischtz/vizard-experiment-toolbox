@@ -34,15 +34,56 @@ class SampleReplay(object):
                 - None: do not replay gaze data, even if it is available in the recording
             replay_view (bool): if True, move the MainView with recorded sample data
         """
-        # Visualization objects
-        if eyeball:
-            self._eye1 = Eyeball(visible=False, pointer=True)
-            self._eye2 = Eyeball(visible=False, pointer=True)
-        else:
-            self._eye1 = vizshape.addAxes(scale=[0.1, 0.1, 0.1])
-            self._eye2 = vizshape.addAxes(scale=[0.1, 0.1, 0.1])
-        self.initial_eye_pos = [0.0, 0.0, 0.0]
-        
+        # Create gaze visualization nodes
+        self._gaze = {'L': {}, 'R': {}, '': {}}
+        for eye_pos in list(self._gaze.keys()):
+            self._gaze[eye_pos]['data'] = False
+            self._gaze[eye_pos]['node'] = None
+            self._gaze[eye_pos]['eye'] = Eyeball(visible=False, pointer=True)
+            self._gaze[eye_pos]['axes'] = vizshape.addAxes(scale=[0.1, 0.1, 0.1])
+            self._gaze[eye_pos]['axes'].visible(False)
+
+        # Initial state of each eye visualization
+        if eye not in ['LEFT_EYE', 'RIGHT_EYE', 'BOTH_EYE', 'BINOCULAR', None]:
+            raise ValueError('Unknown eye parameter specified: {:s}'.format(eye))
+        if eye == viz.LEFT_EYE or eye == 'LEFT_EYE':
+            if eyeball:
+                self._gaze['L']['node'] = 'eye'
+            else:
+                self._gaze['L']['node'] = 'axes'
+            self._gaze['R']['node'] = None
+            self._gaze['']['node'] = None
+
+        elif eye == viz.RIGHT_EYE or eye == 'RIGHT_EYE':
+            if eyeball:
+                self._gaze['R']['node'] = 'eye'
+            else:
+                self._gaze['R']['node'] = 'axes'
+            self._gaze['L']['node'] = None
+            self._gaze['']['node'] = None
+
+        elif eye == viz.BOTH_EYE == 'BOTH_EYE':
+            if eyeball:
+                self._gaze['']['node'] = 'eye'
+            else:
+                self._gaze['']['node'] = 'axes'
+            self._gaze['L']['node'] = None
+            self._gaze['R']['node'] = None
+
+        elif eye == 'BINOCULAR':
+            if eyeball:
+                self._gaze['L']['node'] = 'eye'
+                self._gaze['R']['node'] = 'eye'
+            else:
+                self._gaze['L']['node'] = 'axes'
+                self._gaze['R']['node'] = 'axes'
+            self._gaze['']['node'] = None
+
+        elif eye is None:
+            self._gaze['L']['node'] = None
+            self._gaze['R']['node'] = None
+            self._gaze['']['node'] = None
+
         self._frame = 0
         self._samples = []
         self._sample_time_offset = 0.0
@@ -55,17 +96,6 @@ class SampleReplay(object):
         self.replay_nodes = []
         self._nodes = {}
 
-        if eye == viz.LEFT_EYE:
-            self.eye = 'LEFT_EYE'
-        elif eye == viz.RIGHT_EYE:
-            self.eye = 'RIGHT_EYE'
-        elif eye == viz.BOTH_EYE:
-            self.eye = 'BOTH_EYE'
-        else:
-            self.eye = eye
-        if self.eye not in ['LEFT_EYE', 'RIGHT_EYE', 'BOTH_EYE', 'BINOCULAR', None]:
-            raise ValueError('Unknown eye parameter specified: {:s}'.format(self.eye))
-
         # Set up status GUI
         self._ui = None
         if ui:
@@ -75,12 +105,22 @@ class SampleReplay(object):
             self._ui_play = self._ui.addItem(viz.addButtonLabel('Start Replay'))
             vizact.onbuttondown(self._ui_play, self._ui_toggle_replay)
             self._ui.addSeparator()
-            self._ui_view = self._ui.addLabelItem('Replay view', viz.addCheckbox())
+
+            self._ui.addItem(viz.addText('Gaze Data'))
+            self._gaze['']['ui'] = self._ui.addLabelItem('Combined', viz.addDropList())
+            self._gaze['L']['ui'] = self._ui.addLabelItem('Left', viz.addDropList())
+            self._gaze['R']['ui'] = self._ui.addLabelItem('Right', viz.addDropList())
+            for eye_pos in ['L', 'R', '']:
+                self._gaze[eye_pos]['ui'].setLength(0.6)
+                self._gaze[eye_pos]['ui'].addItems(['not shown', 'Eyeball', 'Axes'])
+                vizact.onlist(self._gaze[eye_pos]['ui'], self._ui_set_gaze)
+            self._ui.addSeparator()
+
+            self._ui.addItem(viz.addText('Display Nodes'))
+            self._ui_view = self._ui.addLabelItem('Move Viewport', viz.addCheckbox())
             self._ui_view.set(self.replay_view)
             vizact.onbuttonup(self._ui_view, self.setMainViewReplay, False)
             vizact.onbuttondown(self._ui_view, self.setMainViewReplay, True)
-            self._ui.addSeparator()
-            self._ui.addItem(viz.addText('Available Nodes:'))
             self._set_ui()
 
         # Load recording
@@ -92,7 +132,7 @@ class SampleReplay(object):
 
 
     def _set_ui(self):
-        """ Set GUI elements to display status (if enabled) """
+        """ Update GUI elements to display status (if enabled) """
         if self._ui is not None:
 
             if len(self._samples) == 0:
@@ -114,7 +154,7 @@ class SampleReplay(object):
 
 
     def _ui_set_node_visibility(self, node):
-        """ Callback to update node visibility on checkbox change """
+        """ Callback for node visibility checkboxes """
         check = self._nodes[node]['ui'].get()
         self._nodes[node]['visible'] = bool(check)
         self._nodes[node]['obj'].visible(bool(check))
@@ -126,6 +166,22 @@ class SampleReplay(object):
             self.stopReplay()
         else:
             self.startReplay(from_start=False)
+
+
+    def _ui_set_gaze(self, event):
+        """ Callback for gaze dropdown list """
+        for eye_pos in ['L', 'R', '']:
+            if event.object == self._gaze[eye_pos]['ui']:
+                self._gaze[eye_pos]['eye'].visible(False)
+                self._gaze[eye_pos]['axes'].visible(False)
+                if event.newSel == 1:
+                    self._gaze[eye_pos]['node'] = 'eye'
+                    self._gaze[eye_pos]['eye'].visible(True)
+                elif event.newSel == 2:
+                    self._gaze[eye_pos]['node'] = 'axes'
+                    self._gaze[eye_pos]['axes'].visible(True)
+                else:
+                    self._gaze[eye_pos]['node'] = None
 
 
     def _update_nodes(self):
@@ -148,7 +204,10 @@ class SampleReplay(object):
                 self._nodes[node]['color'] = colorsys.hsv_to_rgb(random.uniform(0.0, 1.0), 
                                                                  random.uniform(0.4, 1.0), 
                                                                  random.uniform(0.5, 1.0))
-            self._nodes[node]['obj'] = vizshape.addSphere(radius=0.01, color=self._nodes[node]['color'])
+            if node == 'view':
+                self._nodes[node]['obj'] = vizshape.addAxes(scale=[0.1, 0.1, 0.1], color=self._nodes[node]['color'])
+            else:
+                self._nodes[node]['obj'] = vizshape.addSphere(radius=0.01, color=self._nodes[node]['color'])
 
             if self._ui is not None:
                 self._nodes[node]['ui'] = self._ui.addLabelItem(node, viz.addCheckbox())
@@ -156,6 +215,19 @@ class SampleReplay(object):
                 self._nodes[node]['ui'].set(1)
                 self._nodes[node]['callback'] = vizact.onbuttonup(self._nodes[node]['ui'], self._ui_set_node_visibility, node)
                 self._nodes[node]['callback'] = vizact.onbuttondown(self._nodes[node]['ui'], self._ui_set_node_visibility, node)
+
+        # Enable / disable gaze settings based on data availability
+        for eye_pos in list(self._gaze.keys()):
+            if self._gaze[eye_pos]['data']:
+                self._gaze[eye_pos]['ui'].enable()
+                if self._gaze[eye_pos]['node'] is None:
+                    self._gaze[eye_pos]['ui'].select(0)
+                elif self._gaze[eye_pos]['node'] == 'eye':
+                    self._gaze[eye_pos]['ui'].select(1)
+                elif self._gaze[eye_pos]['node'] == 'axes':
+                    self._gaze[eye_pos]['ui'].select(2)
+            else:
+                self._gaze[eye_pos]['ui'].disable()
 
 
     def loadRecording(self, sample_file, sep='\t'):
@@ -182,10 +254,19 @@ class SampleReplay(object):
 
         self._samples = s
         self._sample_time_offset = s[0]['time']
-        self.initial_eye_pos = [s[0]['gaze_posX'], s[0]['gaze_posY'], s[0]['gaze_posZ']]
+
+        # Only enable gaze data present in the recording
+        for eye_pos in list(self._gaze.keys()):
+            self._gaze[eye_pos]['data'] = False
+        if 'gaze_posX' in HEADER and 'gaze_dirX' in HEADER:
+            self._gaze['']['data'] = True
+        if 'gazeL_posX' in HEADER and 'gazeL_dirX' in HEADER:
+            self._gaze['L']['data'] = True
+        if 'gazeR_posX' in HEADER and 'gazeR_dirX' in HEADER:
+            self._gaze['R']['data'] = True
 
         # Find tracked nodes
-        _nodes_builtin = ['view', 'gaze', 'gazeL', 'gazeR', 'tracker', 'trackerL', 'trackerR']
+        _nodes_builtin = ['gaze', 'gazeL', 'gazeR', 'tracker', 'trackerL', 'trackerR']
         for field in HEADER:
             if field[-5:] == '_posX' and field[0:-5] not in _nodes_builtin:
                 self.replay_nodes.append(field[0:-5])
@@ -194,12 +275,6 @@ class SampleReplay(object):
         print('* Loaded {:d} replay samples from {:s}.'.format(len(s), sample_file))
         if len(self.replay_nodes) > 1:
             print('* Replay contains {:d} tracked nodes: {:s}.'.format(len(self.replay_nodes), ', '.join(self.replay_nodes)))
-
-        # Check if data is binocular or monocular, adjust display settings
-        if 'gazeL_posX' not in HEADER and 'gazeR_posX' not in HEADER:
-            if self.eye != 'BOTH_EYE':
-                self.eye = 'BOTH_EYE'
-                print('* Note: no individual eye data present in input file, falling back to averaged gaze data!')
 
 
     def startReplay(self, from_start=True):
@@ -216,9 +291,6 @@ class SampleReplay(object):
             self._player.setEnabled(True)
             self.replaying = True
             self.finished = False
-            self._eye1.visible(True)
-            if self.eye == 'BINOCULAR':
-                self._eye2.visible(True)
             print('Replay started.')
             self._set_ui()
 
@@ -229,8 +301,6 @@ class SampleReplay(object):
             if self._player is not None:
                 self._player.setEnabled(False)
             self.replaying = False
-            self._eye1.visible(False)
-            self._eye2.visible(False)
             print('Replay stopped at frame {:d}.'.format(self._frame))
             self._set_ui()
 
@@ -252,42 +322,22 @@ class SampleReplay(object):
         f = self._samples[self._frame]
 
         # Set up eye representation(s)
-        if self.eye is None:
-            self._eye1.visible(False)
-            self._eye2.visible(False)
-
-        elif self.eye == 'LEFT_EYE':
-            eye_mat = viz.Matrix()
-            eye_mat.setEuler([f['gazeL_dirX'], f['gazeL_dirY'], f['gazeL_dirZ']])
-            eye_mat.setPosition([f['gazeL_posX'], f['gazeL_posY'], f['gazeL_posZ']])
-            eye_mat.setScale(self._eye1.getScale())
-            self._eye1.setMatrix(eye_mat)
-
-        elif self.eye == 'RIGHT_EYE':
-            eye_mat = viz.Matrix()
-            eye_mat.setEuler([f['gazeR_dirX'], f['gazeR_dirY'], f['gazeR_dirZ']])
-            eye_mat.setPosition([f['gazeR_posX'], f['gazeR_posY'], f['gazeR_posZ']])
-            eye_mat.setScale(self._eye1.getScale())
-            self._eye1.setMatrix(eye_mat)
-
-        elif self.eye == 'BOTH_EYE':
-            eye_mat = viz.Matrix()
-            eye_mat.setEuler([f['gaze_dirX'], f['gaze_dirY'], f['gaze_dirZ']])
-            eye_mat.setPosition([f['gaze_posX'], f['gaze_posY'], f['gaze_posZ']])
-            eye_mat.setScale(self._eye1.getScale())
-            self._eye1.setMatrix(eye_mat)
-
-        elif self.eye == 'BINOCULAR':
-            eyeL_mat = viz.Matrix()
-            eyeL_mat.setEuler([f['gazeL_dirX'], f['gazeL_dirY'], f['gazeL_dirZ']])
-            eyeL_mat.setPosition([f['gazeL_posX'], f['gazeL_posY'], f['gazeL_posZ']])
-            eyeL_mat.setScale(self._eye1.getScale())
-            eyeR_mat = viz.Matrix()
-            eyeR_mat.setEuler([f['gazeR_dirX'], f['gazeR_dirY'], f['gazeR_dirZ']])
-            eyeR_mat.setPosition([f['gazeR_posX'], f['gazeR_posY'], f['gazeR_posZ']])
-            eyeR_mat.setScale(self._eye2.getScale())
-            self._eye1.setMatrix(eyeL_mat)
-            self._eye2.setMatrix(eyeR_mat)
+        for eye_pos in list(self._gaze.keys()):
+            if self._gaze[eye_pos]['node'] is not None:
+                if self._gaze[eye_pos]['data']:
+                    node = self._gaze[eye_pos][self._gaze[eye_pos]['node']]
+                    eye_mat = viz.Matrix()
+                    eye_mat.setEuler([f['gaze{:s}_dirX'.format(eye_pos)],
+                                    f['gaze{:s}_dirY'.format(eye_pos)],
+                                    f['gaze{:s}_dirZ'.format(eye_pos)]])
+                    eye_mat.setPosition([f['gaze{:s}_posX'.format(eye_pos)],
+                                        f['gaze{:s}_posY'.format(eye_pos)],
+                                        f['gaze{:s}_posZ'.format(eye_pos)]])
+                    eye_mat.setScale(node.getScale())
+                    node.setMatrix(eye_mat)
+                    node.visible(True)
+                else:
+                   self._gaze[eye_pos][self._gaze[eye_pos]['node']].visible(False) 
 
         # Position the 3D gaze cursor and other nodes
         for node in self._nodes.keys():
