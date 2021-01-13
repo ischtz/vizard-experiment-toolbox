@@ -72,6 +72,8 @@ class SampleReplay(object):
             self._ui = vizinfo.InfoPanel('Sample Data Replay', align=viz.ALIGN_RIGHT_TOP)
             self._ui_bar = self._ui.addItem(viz.addProgressBar('0/0'))
             self._ui_time = self._ui.addLabelItem('Time', viz.addText('NA'))
+            self._ui_play = self._ui.addItem(viz.addButtonLabel('Start Replay'))
+            vizact.onbuttondown(self._ui_play, self._ui_toggle_replay)
             self._ui.addSeparator()
             self._ui_view = self._ui.addLabelItem('Replay view', viz.addCheckbox())
             self._ui_view.set(self.replay_view)
@@ -105,13 +107,26 @@ class SampleReplay(object):
                 else:
                     self._ui_time.message('{:.1f} ms'.format(t))
 
+            if self.replaying and self._ui_play.getMessage() != 'Pause Replay':
+                self._ui_play.message('Pause Replay')
+            elif not self.replaying and self._ui_play.getMessage() != 'Start Replay':
+                self._ui_play.message('Start Replay')
+
 
     def _ui_set_node_visibility(self, node):
         """ Callback to update node visibility on checkbox change """
         check = self._nodes[node]['ui'].get()
         self._nodes[node]['visible'] = bool(check)
         self._nodes[node]['obj'].visible(bool(check))
-    
+
+
+    def _ui_toggle_replay(self):
+        """ Callback for Play/Pause button """
+        if self.replaying:
+            self.stopReplay()
+        else:
+            self.startReplay(from_start=False)
+
 
     def _update_nodes(self):
         """ Create replay node objects and UI items """
@@ -205,6 +220,7 @@ class SampleReplay(object):
             if self.eye == 'BINOCULAR':
                 self._eye2.visible(True)
             print('Replay started.')
+            self._set_ui()
 
         
     def stopReplay(self):
@@ -216,6 +232,7 @@ class SampleReplay(object):
             self._eye1.visible(False)
             self._eye2.visible(False)
             print('Replay stopped at frame {:d}.'.format(self._frame))
+            self._set_ui()
 
 
     def resetReplay(self):
