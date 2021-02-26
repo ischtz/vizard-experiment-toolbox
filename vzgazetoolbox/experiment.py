@@ -15,6 +15,7 @@ else:
     from time import clock as perf_counter	
 
 import viz
+import vizinput
 
 from .data import ParamSet
 
@@ -86,16 +87,24 @@ class Experiment(object):
         self._dlog('Adding {:d} trials: {:s}'.format(num_trials, str(params)))
 
 
-    def addTrialsFromCSV(self, file_name, sep='\t', block=None, block_col=None):
+    def addTrialsFromCSV(self, file_name=None, sep='\t', block=None, block_col=None):
         """ Read a list of trials from a CSV file, adding the columns
-        as parameter values to each trial (one trial per row).
+        as parameter values to each trial (one trial per row). If no file is 
+        specified, show Vizard file selection dialog.
 
         Args:
-            file_name (str): name of CSV file to read
+            file_name (str): name of CSV file to read, or None to show selection dialog
             sep (str): column separator
             block (int): Block number to assign to trials (overrides block_col)
             block_col (str): Column name to use for block numbering
         """
+        if file_name is None:
+            # Show file dialog and pick a reasonable default for the separator
+            file_name = vizinput.fileOpen(filter=[('Trial files', '*.csv;*.tsv;*.dat;*.txt')])
+            ext = os.path.splitext(file_name)[1]
+            if ext.upper() in ['.CSV', '.DAT']:
+                sep=';'
+
         trial_no = 0
         with open(file_name, 'r') as tf:
             reader = csv.DictReader(tf, delimiter=sep)
