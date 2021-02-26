@@ -20,7 +20,7 @@ import vizinput
 from .data import ParamSet
 
 STATE_NEW = 0
-STATE_STARTED = 10
+STATE_RUNNING = 10
 STATE_DONE = 20
 
 
@@ -163,7 +163,7 @@ class Experiment(object):
             across_blocks (bool): if True, shuffle all trials 
                 irrespective of their block number
         """
-        if self._state == STATE_STARTED:
+        if self._state == STATE_RUNNING:
             raise ValueError('Cannot randomize trials while experiment is in progress!')
         else:
             self._updateBlocks()
@@ -216,7 +216,7 @@ class Experiment(object):
     @property
     def running(self):
         """ returns True if experiment is currently running """
-        return self._state == STATE_STARTED
+        return self._state == STATE_RUNNING
 
 
     @property
@@ -250,8 +250,12 @@ class Experiment(object):
             raise RuntimeError('Tried to access the current trial while no trial was running')
 
 
-    def startNextTrial(self):
-        """ Start the next trial in the trial list, if any """
+    def startNextTrial(self, print_summary=True):
+        """ Start the next trial in the trial list, if any 
+        
+        Args:
+            print_summary (bool): if True, print out trial status and parameters
+        """
         if self._trial_running:
             raise RuntimeError('Cannot start a trial while another trial is in progress!')
 
@@ -265,15 +269,18 @@ class Experiment(object):
         else:
             trial_idx = self._cur_trial + 1
 
-        self.startTrial(trial_idx=trial_idx)
+        self.startTrial(trial_idx=trial_idx, print_summary=print_summary)
 
     
-    def startTrial(self, trial_idx, repeat=False):
-        """ Start a specific trial by its trial list index. 
+    def startTrial(self, trial_idx, repeat=False, print_summary=True):
+        """ Start a specific trial by its index in the trial list,
+        e.g. the first trial is experiment.trials[0]. By default each 
+        trial is only run once unless repeat is set to True.
 
         Args:
             trial_idx: Trial object or index of trial to run
             repeat (bool): if True, allow repetition of an already finished trial
+            print_summary (bool): if True, print out trial status and parameters
         """
         if self._trial_running:
             raise RuntimeError('Cannot start a trial while another trial is in progress!')
@@ -286,19 +293,19 @@ class Experiment(object):
             raise RuntimeError(s)
 
         self._cur_trial = trial_idx
-        if self._state < STATE_STARTED:
-            self._state = STATE_STARTED
-        
-        param_str = ''
-        if len(self.trials[trial_idx].params) > 0:
-            param_str = ': ' + repr(self.trials[trial_idx].params)
-        self._dlog('Starting trial {:d}{:s}'.format(trial_idx, param_str))
+        if self._state < STATE_RUNNING:
+            self._state = STATE_RUNNING
         self.trials[trial_idx]._start(index=trial_idx)
         self._trial_running = True
 
 
-    def endCurrentTrial(self):
-        """ End the currently running trial """
+
+    def endCurrentTrial(self, print_summary=True):
+        """ End the currently running trial 
+        
+        Args:
+            print_summary (bool): if True, print out summary of trial results
+        """
         if not self._trial_running:
             raise RuntimeError('There is no running trial to be ended!')
 
@@ -308,6 +315,11 @@ class Experiment(object):
             self._state = STATE_DONE
         self._dlog('Ended trial {:d}'.format(self._cur_trial))
         self._trial_running = False
+
+        if print_summary:
+            print(self.trials[self._cur_trial].summary)
+        else:
+            self._dlog(self.trials[self._cur_trial].summary)
 
 
     def saveTrialData(self, file_name, sep='\t'):
@@ -390,7 +402,7 @@ class Trial(object):
             blockstr = ', block {:d}'.format(int(self.block))
         if self._state == STATE_NEW:
             statestr = ', never run'
-        elif self._state == STATE_STARTED:
+        elif self._state == STATE_RUNNING:
             statestr = ', started'
         elif self._state == STATE_DONE:
             statestr = ', done'
@@ -400,12 +412,12 @@ class Trial(object):
         return s
 
 
-    def _start(self, index=0):
+    def _start(self, index):
         """ Record trial start time """
         self._index = index
         self._start_tick = viz.tick()
         self._start_time = perf_counter() * 1000.0
-        self._state = STATE_STARTED
+        self._state = STATE_RUNNING
 
 
     def _end(self):
@@ -430,7 +442,7 @@ class Trial(object):
     @property
     def running(self):
         """ returns True if this trial is currently running """
-        return self._state == STATE_STARTED
+        return self._state == STATE_RUNNING
 
 
     @property
@@ -440,9 +452,32 @@ class Trial(object):
 
 
     @property
+    def status(self):
+        """ String description of current trial status """
+        states = {STATE_NEW: 'not run',
+                  STATE_RUNNING: 'running',
+                  STATE_DONE: 'done'}
+        return states[self._state]
+
+
+    @property
+    def summary(self):
+        """ Trial summary string. Includes params for a running trial and 
+        results for a finished trial.
+        """
+        value_str = ''
+        if self.status == 'running' and len(self.params) > 0:
+            value_str = 'Params: ' + ', '.join(['{:s}={:s}'.format(l, str(res)) for (l, res) in self.params])
+        elif self.status == 'done' and len(self.results) > 0:
+            value_str = 'Results: ' + ', '.join(['{:s}={:s}'.format(l, str(res)) for (l, res) in self.results])
+        s = 'Trial #{: 3d} {:s}. {:s}'.format(self.number, self.status, value_str)
+        return s
+
+
+    @property
     def starttime(self):
         """ Return Vizard time stamp of when this trial was started """
-        if self._state < STATE_STARTED:
+        if self._state < STATE_RUNNING:
             e = 'Trying to access start time of a trial that has not been started yet!'
             raise RuntimeError(e)
         else:
@@ -457,3 +492,4 @@ class Trial(object):
             raise RuntimeError(e)
         else:
             return self._end_tick
+
