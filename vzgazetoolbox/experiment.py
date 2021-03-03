@@ -7,6 +7,7 @@ import os
 import sys
 import csv
 import copy
+import time
 import random
 
 if sys.version_info[0] == 3:
@@ -26,15 +27,22 @@ STATE_DONE = 20
 
 class Experiment(object):
     
-    def __init__(self, trial_file=None, config=None, debug=False):
+    def __init__(self, name=None, trial_file=None, config=None, debug=False):
         """ Class to hold an entire VFX experiment. Manages trials, data recording, 
         and timing. 
 
         Args:
+            name (str): Experiment name (label, used e.g. in file names)
             trial_file (str): Optional file name of initial trial parameter file
             config (dict): Optional initial config parameters
             debug (bool): it True, print additional debug output
         """
+        if name is None:
+            print('Note: Experiment name is not set, using "Experiment1". You can specify the name='' argument when creating an Experiment() object.')
+            self.name = 'Experiment1'
+        else:
+            self.name = name
+
         self.trials = []
         self._blocks = []
         self._block_trials = {}
@@ -69,6 +77,14 @@ class Experiment(object):
             print('[{:s}] {:.4f} - {:s}'.format('exp', viz.tick(), text))
 
 
+    def _generateFileName(self, extension):
+        """ Generate a file name for output if not specified """
+        fn = self.name
+        fn += '_' + time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        fn += '.{:s}'.format(extension.lower())
+        return fn
+
+    
     def addTrials(self, num_trials=1, params={}, block=None):
         """ Add a specified number of trials. The contents of
         the 'params' dict are copied to each trial. You can then further
@@ -322,23 +338,28 @@ class Experiment(object):
             self._dlog(self.trials[self._cur_trial].summary)
 
 
-    def saveTrialData(self, file_name, sep='\t'):
+    def saveTrialData(self, file_name=None, sep='\t'):
         """ Shortcut to saveTrialDataToCSV 
         
         Args:
             file_name (str): Name of CSV file to write to
             sep (str): Field separator string (default: Tab)
         """
+        if file_name is None:
+            file_name = self._generateFileName('tsv')
         self.saveTrialDataToCSV(file_name, sep)
 
 
-    def saveTrialDataToCSV(self, file_name, sep='\t'):
+    def saveTrialDataToCSV(self, file_name=None, sep='\t'):
         """ Saves trial parameters and results to CSV file
 
         Args:
             file_name (str): Name of CSV file to write to
             sep (str): Field separator string (default: Tab)
         """
+        if file_name is None:
+            file_name = self._generateFileName('tsv')
+
         all_keys = []
         tdicts = []
         for t in self.trials:
