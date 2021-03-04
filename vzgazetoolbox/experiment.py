@@ -62,6 +62,7 @@ class Experiment(object):
         self._cur_trial = 0
         self._trial_running = False
         self.debug = debug
+        self._base_filename = None
         
         if trial_file is not None:
             self.addTrialsFromCSV(trial_file)
@@ -77,12 +78,16 @@ class Experiment(object):
             print('[{:s}] {:.4f} - {:s}'.format('exp', viz.tick(), text))
 
 
-    def _generateFileName(self, extension):
-        """ Generate a file name for output if not specified """
-        fn = self.name
-        fn += '_' + time.strftime('%Y%m%d_%H%M%S', time.localtime())
-        fn += '.{:s}'.format(extension.lower())
-        return fn
+    @property
+    def output_file_name(self):
+        """ Base file name for output files, including date and time 
+        and participant metadata if available. Generated and cached on 
+        first access. """
+        if self._base_filename is None:                
+            fn = self.name
+            fn += '_' + time.strftime('%Y%m%d_%H%M%S', time.localtime())
+            self._base_filename = fn
+        return self._base_filename
 
     
     def addTrials(self, num_trials=1, params={}, block=None):
