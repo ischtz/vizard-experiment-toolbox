@@ -982,7 +982,7 @@ class SampleRecorder(object):
         
 
     def saveRecording(self, sample_file=None, event_file=None, clear_samples=True, clear_events=True, 
-                      sep='\t', quat=False):
+                      sep='\t', quat=False, meta_cols={}, _data=None, _append=False):
         """ Save current gaze recording to a tab-separated CSV file 
         and clear the current recording by default.
         
@@ -993,7 +993,24 @@ class SampleRecorder(object):
             clear_events (bool): if True, clear recorded events after saving
             sep (str): Field separator in output file
             quat (bool): if True, also export rotation Quaternions
+            meta_cols (dict): Dict of values to add to each sample (e.g., trial number)
+            _data: Tuple (samples, events) to save, None for current recording (mostly internal use)
         """
+        # Select data to save
+        if _data is not None:
+            samples, events = _data
+        else:
+            # Current recording: cut to size if < preallocation limit
+            if self._samples_idx < self._prealloc:
+                self._samples = self._samples[0:self._samples_idx]
+            samples = self._samples
+            events = self._events
+
+        if _append:
+            writemode = 'a'
+        else:
+            writemode = 'w'
+
         # Samples: select keys to be exported and build file format
         fields = ['time', 'systime', 'view_posX', 'view_posY', 'view_posZ', 'view_dirX', 'view_dirY', 'view_dirZ']
 
@@ -1007,7 +1024,7 @@ class SampleRecorder(object):
                     'gazeR_posX', 'gazeR_posY', 'gazeR_posZ', 'gazeR_dirX', 'gazeR_dirY', 'gazeR_dirZ',
                     'pupil_size', 'pupil_sizeL', 'pupil_sizeR', 'eye_state', 'eye_stateL', 'eye_stateR']
             for field in special:
-                if field in self._samples[0].keys():
+                if field in samples[0].keys():
                     fields += [field,]
 
         # Additional tracked nodes
@@ -1035,34 +1052,41 @@ class SampleRecorder(object):
                     fields += ['trackerL_quatX', 'trackerL_quatY', 'trackerL_quatZ', 'trackerL_quatW',
                                'trackerR_quatX', 'trackerR_quatY', 'trackerR_quatZ', 'trackerR_quatW']
 
+        evfields = ['time', 'message']
+
+        # Optional metadata
+        for sample in samples:
+            sample.update(meta_cols)
+        fields += list(meta_cols.keys())
+        for event in events:
+            event.update(meta_cols)
+        evfields += list(meta_cols.keys())
+
         # Samples
         if sample_file is not None:
-            # Cut recording to size if below preallocation limit
-            if self._samples_idx < self._prealloc:
-                self._samples = self._samples[0:self._samples_idx]
-
-            with open(sample_file, 'w') as of:
+            with open(sample_file, writemode) as of:
                 writer = csv.DictWriter(of, delimiter=sep, lineterminator='\n', 
                                         fieldnames=fields, extrasaction='ignore')
-                writer.writeheader()
-                for sample in self._samples:
+                if not _append:
+                    writer.writeheader()
+                for sample in samples:
                     writer.writerow(sample)
-            self._dlog('Saved {:d} samples to file: {:s}'.format(len(self._samples), sample_file))
+            self._dlog('Saved {:d} samples to file: {:s}'.format(len(samples), sample_file))
 
         # Events
-        evfields = ['time', 'message']    
         if event_file is not None:
-            with open(event_file, 'w') as ef:
+            with open(event_file, writemode) as ef:
                 writer = csv.DictWriter(ef, delimiter=sep, lineterminator='\n', fieldnames=evfields)
-                writer.writeheader()
-                for event in self._events:
+                if not _append:
+                    writer.writeheader()
+                for event in events:
                     writer.writerow(event)
-            self._dlog('Saved {:d} events to file: {:s}'.format(len(self._events), event_file))
+            self._dlog('Saved {:d} events to file: {:s}'.format(len(events), event_file))
 
         if sample_file is None and event_file is None:
             self._dlog('Neither sample_file nor event_file were specified. No data saved.')
         else:
-            if clear_samples or clear_events:
+            if _data is None and (clear_samples or clear_events):
                 self.clearRecording(samples=clear_samples, events=clear_events)
 
 
