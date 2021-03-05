@@ -27,7 +27,7 @@ STATE_DONE = 20
 
 class Experiment(object):
     
-    def __init__(self, name=None, trial_file=None, config=None, debug=False):
+    def __init__(self, name=None, trial_file=None, config=None, debug=False, output_file=None, auto_save=True):
         """ Class to hold an entire VFX experiment. Manages trials, data recording, 
         and timing. 
 
@@ -36,6 +36,8 @@ class Experiment(object):
             trial_file (str): Optional file name of initial trial parameter file
             config (dict): Optional initial config parameters
             debug (bool): it True, print additional debug output
+            output_file (str): Base file name (without extension) for output files
+            auto_save (bool): if True, automatically save data after each trial
         """
         if name is None:
             print('Note: Experiment name is not set, using "Experiment1". You can specify the name='' argument when creating an Experiment() object.')
@@ -62,7 +64,8 @@ class Experiment(object):
         self._cur_trial = 0
         self._trial_running = False
         self.debug = debug
-        self._base_filename = None
+        self._base_filename = output_file
+        self._auto_save = auto_save
         
         if trial_file is not None:
             self.addTrialsFromCSV(trial_file)
@@ -337,6 +340,9 @@ class Experiment(object):
         self._dlog('Ended trial {:d}'.format(self._cur_trial))
         self._trial_running = False
 
+        if self._auto_save:
+            self.saveTrialData('{:s}.tsv'.format(self.output_file_name))
+
         if print_summary:
             print(self.trials[self._cur_trial].summary)
         else:
@@ -351,7 +357,7 @@ class Experiment(object):
             sep (str): Field separator string (default: Tab)
         """
         if file_name is None:
-            file_name = self._generateFileName('tsv')
+            file_name = '{:s}.tsv'.format(self.output_file_name)
         self.saveTrialDataToCSV(file_name, sep)
 
 
@@ -363,7 +369,7 @@ class Experiment(object):
             sep (str): Field separator string (default: Tab)
         """
         if file_name is None:
-            file_name = self._generateFileName('tsv')
+            file_name = '{:s}.tsv'.format(self.output_file_name)
 
         all_keys = []
         tdicts = []
