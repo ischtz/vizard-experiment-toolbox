@@ -267,6 +267,70 @@ class SampleRecorder(object):
         return copy.deepcopy(self._last_val_result)
 
 
+    def _getRawRecording(self, clear=True):
+        """ Return last recording data as list of dicts """
+        sidx = self._samples_idx
+        rec_s = copy.copy(self._samples)
+        rec_e = copy.copy(self._events)
+        if sidx < self._prealloc:
+            rec_s = rec_s[0:sidx]
+        if clear:
+            self.clearRecording(samples=True, events=True)        
+        return (rec_s, rec_e)
+
+
+    def getLastRecording(self, clear=False):
+        """ Return last sample recording as a (samples, events) tuple, each with 
+        a dictionary of sample data lists for each data stream (i.e., samples.time[0:10]). 
+
+        Args:
+            clear (bool): if True, clear data afterwards (also stops recording if active)
+        """
+        samples = {}
+        events = {}
+
+        if self.recording:
+            print('getLastRecording(): Recording is still active, data may be incomplete!')
+
+        sidx = self._samples_idx
+        rec_s = copy.copy(self._samples)
+        rec_e = copy.copy(self._events)
+        if sidx < self._prealloc:
+            rec_s = rec_s[0:sidx] # cut to size if preallocated
+
+        # Collect all data fields beforehand, so we can set None for missing data
+        s_fields = []
+        for s in rec_s:
+            for key in s.keys():
+                if key not in s_fields:
+                    s_fields.append(key)
+        s_fields = sorted(s_fields)                    
+        e_fields = ['time', 'message']
+
+        for f in s_fields:
+            if f not in samples.keys():
+                samples[f] = []
+            for s in rec_s:
+                try:
+                    samples[f].append(s[f])
+                except KeyError:
+                    samples[f].append(None)
+
+        for f in e_fields:
+            if f not in events.keys():
+                events[f] = []
+            for e in rec_e:
+                try:
+                    events[f].append(e[f])
+                except KeyError:
+                    events[f].append(None)
+
+        if clear:
+            self.clearRecording(samples=True, events=True)
+
+        return (samples, events)
+        
+    
     def measureIPD(self, sample_dur=1000.0):
         """ Measure Inter-Pupillary Distance (IPD) of the HMD wearer
         
