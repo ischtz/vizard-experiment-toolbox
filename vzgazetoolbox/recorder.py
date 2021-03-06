@@ -117,7 +117,7 @@ class SampleRecorder(object):
             String to print
         """
         if self.debug:
-            print('[{:s}] {:.4f} - {:s}'.format('REC', viz.tick(), text))
+            print('[{:s}] {:.4f} - {:s}'.format('REC', viz.tick(), str(text)))
             
 
     def _deg2m(self, x, d):

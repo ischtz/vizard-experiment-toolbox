@@ -82,7 +82,7 @@ class Experiment(object):
             String to print
         """
         if self.debug:
-            print('[{:s}] {:.4f} - {:s}'.format('EXP', viz.tick(), text))
+            print('[{:s}] {:.4f} - {:s}'.format('EXP', viz.tick(), str(text)))
 
 
     @property
