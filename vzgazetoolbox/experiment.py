@@ -19,6 +19,7 @@ import viz
 import vizinput
 
 from .data import ParamSet
+from .recorder import SampleRecorder
 
 STATE_NEW = 0
 STATE_RUNNING = 10
@@ -67,6 +68,9 @@ class Experiment(object):
         self._base_filename = output_file
         self._auto_save = auto_save
         
+        self._recorder = None
+        self._auto_record = True
+
         if trial_file is not None:
             self.addTrialsFromCSV(trial_file)
 
@@ -78,7 +82,7 @@ class Experiment(object):
             String to print
         """
         if self.debug:
-            print('[{:s}] {:.4f} - {:s}'.format('exp', viz.tick(), text))
+            print('[{:s}] {:.4f} - {:s}'.format('EXP', viz.tick(), text))
 
 
     @property
@@ -205,6 +209,19 @@ class Experiment(object):
                     self._dlog('Trials randomized.')
     
 
+    def addSampleRecorder(self, auto_record=True, **kwargs):
+        """ Set up sample recorder to record view, gaze, and other
+        objects' position and orientation on each display frame. 
+
+        Args:
+            auto_record (bool): if True, start and stop recording
+                automatically with each trial
+            **kwargs: any valid argument to SampleRecorder()
+        """
+        self._recorder = SampleRecorder(DEBUG=self.debug, **kwargs)
+        self._auto_record = auto_record
+
+    
     def _updateBlocks(self):
         """ Rebuild experiment list of blocks and corresponding trials """
         self._blocks = []
@@ -238,6 +255,16 @@ class Experiment(object):
 
 
     @property
+    def recorder(self):
+        if self._recorder is not None:
+            return self._recorder
+        else:
+            e = 'Sample recorder needs to be initialized using addSampleRecorder()'
+            e += ' before accessing!'
+            raise RuntimeError(e)
+
+
+    @property
     def running(self):
         """ returns True if experiment is currently running """
         return self._state == STATE_RUNNING
@@ -258,20 +285,16 @@ class Experiment(object):
 
     @property
     def currentTrial(self):
-        """ Return the current trial object if experiment is running """
-        if self._trial_running:
-            return self.trials[self._cur_trial]
-        else:
-            raise RuntimeError('Tried to access the current trial while no trial was running')
+        """ Return the current trial object. If no trial is running, this will
+        reference the trial that just ended. """
+        return self.trials[self._cur_trial]
 
 
     @property
-    def currentTrialNumber(self):
-        """ Return the current trial number if experiment is running """
-        if self._trial_running:
-            return self._cur_trial
-        else:
-            raise RuntimeError('Tried to access the current trial while no trial was running')
+    def currentTrialIndex(self):
+        """ Return the current trial index. If no trial is running, this will
+        reference the trial that just ended. """
+        return self._cur_trial
 
 
     def startNextTrial(self, print_summary=True):
@@ -322,7 +345,15 @@ class Experiment(object):
         self.trials[trial_idx]._start(index=trial_idx)
         self._trial_running = True
 
+        if self._recorder is not None and self._auto_record:
+            self._recorder.startRecording()
+            self._recorder.recordEvent('TRIAL_START {:d}'.format(trial_idx))
 
+        if print_summary:
+            print(self.trials[self._cur_trial].summary)
+        else:
+            self._dlog(self.trials[self._cur_trial].summary)
+     
 
     def endCurrentTrial(self, print_summary=True):
         """ End the currently running trial 
@@ -333,6 +364,13 @@ class Experiment(object):
         if not self._trial_running:
             raise RuntimeError('There is no running trial to be ended!')
 
+        if self._recorder is not None and self._auto_record:
+            self._recorder.recordEvent('TRIAL_END {:d}'.format(self.trials[self._cur_trial].index))
+            self._recorder.stopRecording()
+            sam, ev = self._recorder._getRawRecording(clear=True)
+            self.trials[self._cur_trial].samples = sam
+            self.trials[self._cur_trial].events = ev
+
         self.trials[self._cur_trial]._end()
         if self._cur_trial + 1 >= len(self.trials):
             # Stop experiment if this was the last trial
@@ -341,7 +379,7 @@ class Experiment(object):
         self._trial_running = False
 
         if self._auto_save:
-            self.saveTrialData('{:s}.tsv'.format(self.output_file_name))
+            self.saveTrialData('{:s}.tsv'.format(self.output_file_name), rec_data='separate')
 
         if print_summary:
             print(self.trials[self._cur_trial].summary)
@@ -349,28 +387,44 @@ class Experiment(object):
             self._dlog(self.trials[self._cur_trial].summary)
 
 
-    def saveTrialData(self, file_name=None, sep='\t'):
+    def saveTrialData(self, file_name=None, sep='\t', rec_data='single'):
         """ Shortcut to saveTrialDataToCSV 
         
         Args:
             file_name (str): Name of CSV file to write to
             sep (str): Field separator string (default: Tab)
+            rec_data: How to save sample and event data if recorded:
+                - 'single': One large file with all samples (default)
+                - 'separate' Or True: one sample file per trial
+                - 'none' or False: Do not save sample data
         """
         if file_name is None:
             file_name = '{:s}.tsv'.format(self.output_file_name)
-        self.saveTrialDataToCSV(file_name, sep)
+        self.saveTrialDataToCSV(file_name, sep, rec_data=rec_data)
 
 
-    def saveTrialDataToCSV(self, file_name=None, sep='\t'):
+    def saveTrialDataToCSV(self, file_name=None, sep='\t', rec_data='single'):
         """ Saves trial parameters and results to CSV file
 
         Args:
             file_name (str): Name of CSV file to write to
             sep (str): Field separator string (default: Tab)
+            rec_data: How to save sample and event data if recorded:
+                - 'single': One large file with all samples (default)
+                - 'separate' Or True: one sample file per trial
+                - 'none' or False: Do not save sample data
         """
         if file_name is None:
             file_name = '{:s}.tsv'.format(self.output_file_name)
 
+        if type(rec_data) == bool:
+            if rec_data: 
+                rec_data = 'single'
+            else: 
+                rec_data = 'none'
+
+        # Trial data
+        self._dlog('Saving trial data...')
         all_keys = []
         tdicts = []
         for t in self.trials:
@@ -381,7 +435,7 @@ class Experiment(object):
             td['_start_time'] = t._start_time
             td['_end_time'] = t._end_time
             td['_original_idx'] = t._index
-            
+
             # Collect superset of all param and result keys
             for key in list(td.keys()):
                 if key not in all_keys:
@@ -396,6 +450,35 @@ class Experiment(object):
             for td in tdicts:
                 writer.writerow(td)
 
+        # Sample and event data
+        if rec_data.lower() == 'single':
+            file_name_s = '{:s}_samples.tsv'.format(os.path.splitext(file_name)[0])
+            file_name_e = '{:s}_events.tsv'.format(os.path.splitext(file_name)[0])
+
+            first = True
+            for t in self.trials:
+                # Write all trials to same file, but ensure not to append to old data
+                if first:
+                    self.recorder.saveRecording(sample_file=file_name_s, event_file=file_name_e, _append=False,
+                                                _data=(t.samples, t.events), meta_cols={'trial_number': t.number})
+                    first = False
+                else:
+                    self.recorder.saveRecording(sample_file=file_name_s, event_file=file_name_e, _append=True,
+                                                _data=(t.samples, t.events), meta_cols={'trial_number': t.number})
+
+        elif rec_data.lower() == 'separate':
+            for t in self.trials:
+                try:
+                    file_name_s = '{:s}_samples_{:d}.tsv'.format(os.path.splitext(file_name)[0], t.number)
+                    file_name_e = '{:s}_events_{:d}.tsv'.format(os.path.splitext(file_name)[0], t.number)
+                    if os.path.isfile(file_name_s) and os.path.isfile(file_name_e):
+                        continue # This is called on each trial, so skip existing files
+                    
+                    self.recorder.saveRecording(sample_file=file_name_s, event_file=file_name_e, 
+                                                _data=(t.samples, t.events), meta_cols={'trial_number': t.number})
+                
+                except AttributeError:
+                    pass # Skip trials without recorded data
 
 class Trial(object):
 
