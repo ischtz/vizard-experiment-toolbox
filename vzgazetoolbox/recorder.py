@@ -257,6 +257,21 @@ class SampleRecorder(object):
         return self._gaze3d_last_valid
 
 
+    def waitGazeNearTarget(self, target, tolerance=2.0):
+        """ Wait until gaze is on (or close to) a target position 
+        
+        Args:
+            target (3-tuple): target position (X, Y, Z) in world space
+            tolerance (float): Gaze error tolerance in degrees
+        """
+        gaze_err = 9999
+        while gaze_err >= tolerance:
+            eyeTarVec = vizmat.VectorToPoint(self._gazedir.getPosition(), target)
+            eyeGazeVec = self._gazedir.getForward()
+            gaze_err = vizmat.AngleBetweenVector(eyeGazeVec, eyeTarVec) 
+            yield viztask.waitTime(0.008)
+
+
     def showGazeCursor(self, visible):
         """ Set visibility of the gaze cursor node """
         self._cursor.visible(visible)
