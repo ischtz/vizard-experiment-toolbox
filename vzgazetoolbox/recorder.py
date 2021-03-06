@@ -83,6 +83,7 @@ class SampleRecorder(object):
         self._prealloc = prealloc
         self._val_samples = []
         self._events = []
+        self._customvars = ParamSet()
         self._recorder = vizact.onupdate(self.priority, self._onUpdate)
 
         # Gaze validation
@@ -330,6 +331,38 @@ class SampleRecorder(object):
 
         return (samples, events)
         
+    
+    def setCustomVar(self, variable, value=None):
+        """ Set or update a custom variable, logged on each sample.
+        Ex.: vizact.onkeydown(viz.KEY_RETURN, rec.setCustomVar, 'key', 1)
+
+        Args:
+            variable (str/dict): Name of variable to set or change,
+                alternatively: dict with multiple variables to update
+            value: Value to store
+        """
+        if type(variable) == dict:
+            self._customvars.__dict__.update(variable)
+        else:    
+            self._customvars[variable] = value
+    
+
+    def getCustomVar(self, variable):
+        """  Get current value of a custom recorder variable.
+
+        Args:
+            variable (str): Name of variable to set or change
+        """
+        if variable in self._customvars.keys():
+            return self._customvars[variable]
+        else:
+            raise KeyError('The requested custom variable was never set!')
+
+
+    @property
+    def custom_vars(self):
+        return self._customvars
+
     
     def measureIPD(self, sample_dur=1000.0):
         """ Measure Inter-Pupillary Distance (IPD) of the HMD wearer
@@ -920,6 +953,9 @@ class SampleRecorder(object):
                 s['eye_stateL'] = self._tracker.getEyeOpen(viz.LEFT_EYE)
                 s['eye_stateR'] = self._tracker.getEyeOpen(viz.RIGHT_EYE)
 
+        # Additional data fields
+        s.update(self._customvars)
+        
         # Add to preallocated list, or switch to appending if full
         if self._samples_idx < self._prealloc:
             self._samples[self._samples_idx] = s
@@ -1061,6 +1097,9 @@ class SampleRecorder(object):
         for event in events:
             event.update(meta_cols)
         evfields += list(meta_cols.keys())
+
+        # Custom sample variables
+        fields += list(self._customvars.__dict__.keys())
 
         # Samples
         if sample_file is not None:
