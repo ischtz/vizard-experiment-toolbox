@@ -65,9 +65,9 @@ def Main():
     
     # Now run the validation routine
     # Look at each target in turn until it turns green
-    yield rec.validate(targets=targets)
+    yield rec.validateEyeTracker(targets=targets)
     
-    # Print validation result (also returned by validate() directly)
+    # Print validation result (also returned by validateEyeTracker() directly)
     result = rec.getLastValResult()
     print(result)
     

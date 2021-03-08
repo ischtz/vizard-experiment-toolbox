@@ -44,7 +44,7 @@ class SampleRecorder(object):
             key_calibrate (str): Vizard key code that should trigger eye tracker calibration
             key_preview (str): Vizard key code that should trigger target preview
             key_validate (str): Vizard key code that should trigger gaze validation
-            targets: default validation target set to use (see validate())
+            targets: default validation target set to use (see validateEyeTracker())
             prealloc (int): number of samples to preallocate to avoid skipped frames due to 
                 Python list extension. Default should be good for 60 min at 90 Hz.
             priority: Vizard priority value to apply to sample collection task
@@ -100,10 +100,10 @@ class SampleRecorder(object):
 
         # Register task callbacks for interactive keys
         if key_calibrate is not None:
-            self._cal_callback = vizact.onkeydown(key_calibrate, viztask.schedule, self.calibrate)
+            self._cal_callback = vizact.onkeydown(key_calibrate, viztask.schedule, self.calibrateEyeTracker)
             self._dlog('Key callback registered: Calibration ({:s}).'.format(key_calibrate))
         if key_validate is not None:
-            self._val_callback = vizact.onkeydown(key_validate, viztask.schedule, self.validate)
+            self._val_callback = vizact.onkeydown(key_validate, viztask.schedule, self.validateEyeTracker)
             self._dlog('Key callback registered: Validation ({:s}).'.format(key_validate))
         if key_preview is not None:
             self._prev_callback = vizact.onkeydown(key_preview, viztask.schedule, self.previewTargets)
@@ -501,17 +501,17 @@ class SampleRecorder(object):
         self._dlog('Original scene returned')
 
 
-    def calibrate(self):
+    def calibrateEyeTracker(self):
         """ Calibrates the eye tracker via its calibrate() method """
         if self._tracker is None:
-            raise RuntimeError('No eye tracker set up, calibrate() method is not available!')
+            raise RuntimeError('No eye tracker set up, calibrateEyeTracker() method not available!')
 
         self._dlog('Starting eye tracker calibration.')
         yield self._tracker.calibrate()
         self._dlog('Eye tracker calibration finished.')    
 
 
-    def validate(self, targets=None, dur=2000, tar_color=[1.0, 1.0, 1.0], randomize=True, metadata=None):
+    def validateEyeTracker(self, targets=None, dur=2000, tar_color=[1.0, 1.0, 1.0], randomize=True, metadata=None):
         """ Measure gaze accuracy and precision for a set of head-locked targets
         in a special validation scene. 
         
@@ -527,7 +527,7 @@ class SampleRecorder(object):
         Returns: vzgazetoolbox.ValidationResult object 
         """
         if self._tracker is None:
-            raise RuntimeError('No eye tracker set up, validate() method is not available!')
+            raise RuntimeError('No eye tracker set up, validateEyeTracker() method not available!')
 
         if targets is None:
             if self._default_targets is not None:
@@ -803,7 +803,7 @@ class SampleRecorder(object):
         viztask.returnValue(self._last_val_result)
 
 
-    def checkDrift(self, threshold=1.5, auto_calibrate=True):
+    def checkEyeTrackerDrift(self, threshold=1.5, auto_calibrate=True):
         """ Run single-target validation to check for eye tracker drift. 
 
         Args:
@@ -811,13 +811,13 @@ class SampleRecorder(object):
             auto_calibrate (bool): if True, run calibration automatically when failed
         """
         if self._tracker is None:
-            raise RuntimeError('No eye tracker set up, checkDrift() method is not available!')
+            raise RuntimeError('No eye tracker set up, checkEyeTrackerDrift() method not available!')
      
-        val_res = yield self.validate(targets=VAL_TAR_C, dur=2000, tar_color=[1.0, 1.0, 1.0])
+        val_res = yield self.validateEyeTracker(targets=VAL_TAR_C, dur=2000, tar_color=[1.0, 1.0, 1.0])
         if val_res.acc > threshold:
             self._dlog('Drift check FAILED, acc = {:.2f}°'.format(val_res.acc))
             if auto_calibrate:
-                yield self.calibrate()
+                yield self.calibrateEyeTracker()
         else:
             self._dlog('Drift check PASSED, acc = {:.2f}°'.format(val_res.acc))
         viztask.returnValue(val_res.acc)
