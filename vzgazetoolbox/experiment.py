@@ -97,7 +97,7 @@ class Experiment(object):
         return self._base_filename
 
     
-    def addTrials(self, num_trials=1, params={}, block=None):
+    def addTrials(self, num_trials=1, params={}, list_params={}, block=None):
         """ Add a specified number of trials. The contents of
         the 'params' dict are copied to each trial. You can then further
         modify each trial individually using its 'params' attribute.
@@ -105,17 +105,29 @@ class Experiment(object):
         Args:
             num_trials (int): Number of trials to create
             params (dict): Parameter values to set in all trials
+            list_params (dict): Parameters to assign to individual trials
+                (each dict entry must contain a list of <num_trials> entries)
             block (int): Optional block number to group trials into blocks
         """
         if block is None:
             block = 0
+
+        for key in list_params.keys():
+            if len(list_params[key]) != num_trials:
+                estr = 'Values in list_params must have the same length as num_trials! [{:s}]'
+                raise ValueError(estr.format(key))
+
         for t in range(0, num_trials):
-            self.trials.append(Trial(params=params, index=t, block=block))
+            tparams = copy.copy(params)
+            tparams.update({key:val[t] for key, val in list_params.iteritems()})
+            self.trials.append(Trial(params=tparams, index=t, block=block))
+
         self._updateBlocks()
         self._dlog('Adding {:d} trials: {:s}'.format(num_trials, str(params)))
 
 
-    def addTrialsFromCSV(self, file_name=None, sep='\t', block=None, block_col=None):
+    def addTrialsFromCSV(self, file_name=None, sep='\t', block=None, 
+                         block_col=None, params={}):
         """ Read a list of trials from a CSV file, adding the columns
         as parameter values to each trial (one trial per row). If no file is 
         specified, show Vizard file selection dialog.
@@ -125,6 +137,8 @@ class Experiment(object):
             sep (str): column separator
             block (int): Block number to assign to trials (overrides block_col)
             block_col (str): Column name to use for block numbering
+            params (dict): Parameter values to set in all trials
+                (Caution: Will override identically named columns from input file!)
         """
         if file_name is None:
             # Show file dialog and pick a reasonable default for the separator
@@ -137,27 +151,27 @@ class Experiment(object):
         with open(file_name, 'r') as tf:
             reader = csv.DictReader(tf, delimiter=sep)
             for row in reader:
-                params = {}
+                cparams = {}
                 for h in reader.fieldnames:
 
                     # Convert numeric values
                     data = row[h]
                     try:
-                        params[h] = int(data)
+                        cparams[h] = int(data)
                     except ValueError:
                         try:
-                            params[h] = float(data)
+                            cparams[h] = float(data)
                         except ValueError:
-                            params[h] = data
+                            cparams[h] = data
 
                 if block is None:
                     if block_col is not None:
                         # Use column if no block number specified
-                        if block_col not in params.keys():
+                        if block_col not in cparams.keys():
                             s = 'addTrialsFromCSV: Block variable "{:s}" not found in input file!'
                             raise ValueError(s.format(block_col))
                         else:
-                            bl = int(params[block_col])
+                            bl = int(cparams[block_col])
 
                     elif block_col is None:
                         # Nothing specified, use default (0)
@@ -166,7 +180,10 @@ class Experiment(object):
                     # Use block argument if present (overrides column)
                     bl = int(block)
 
-                self.trials.append(Trial(params=params, index=trial_no, block=bl))
+                # Add any other params specified in function call
+                cparams.update(params)
+
+                self.trials.append(Trial(params=cparams, index=trial_no, block=bl))
                 trial_no += 1
 
         self._updateBlocks()
