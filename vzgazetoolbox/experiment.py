@@ -9,6 +9,7 @@ import csv
 import copy
 import time
 import random
+import itertools
 
 if sys.version_info[0] == 3:
     from time import perf_counter
@@ -124,6 +125,54 @@ class Experiment(object):
 
         self._updateBlocks()
         self._dlog('Adding {:d} trials: {:s}'.format(num_trials, str(params)))
+
+
+    def addTrialsFullFactorial(self, levels, repeat=1, params={}, block=None):
+        """ Add trials by building a full-factorial experimental design.
+
+        When given as number of levels, generates a numeric range starting
+        at 1. Factors are included as params, together with the contents of 
+        the params= attribute. 
+
+        Args:
+            levels (dict): Factor names (as keys) and values as:
+                - number of factor levels (int), e.g. {'condition': 2}, or
+                - iterable of factor labels, e.g., {'condition': ['baseline', 'test']}
+            repeat (int): Number of times to repeat the full design
+            params (dict): Additional parameter values to set in all trials
+            block (int): Optional block number to group trials into blocks
+        """
+        iters = {}
+        factors = []
+        variables = list(levels.keys())
+
+        for key in variables:
+            if type(levels[key]) == int:
+                # Number of levels given - generate list
+                iters[key] = list(range(1, int(levels[key]) + 1))
+            else:
+                # Use iterable of labels directly
+                iters[key] = levels[key]
+            factors.append(iters[key])
+
+        design = list(itertools.product(*factors)) * repeat
+        for ix, entry in enumerate(design):
+            tparams = {}
+            for var, lev in zip(variables, entry):
+                tparams[var] = lev
+            tparams.update(params)
+            self.trials.append(Trial(params=tparams, index=ix, block=block))
+        self._updateBlocks()
+
+        # Debug: print design description
+        design_str = []
+        for key in variables:
+            design_str.append(str(len(levels[key])))
+        design_str = 'x'.join(design_str)
+        rep_str = ''
+        if repeat != 1:
+            rep_str = ', {:d} reps'.format(repeat)
+        self._dlog('Adding {:d} trials ({:s} design{:s}): {:s}'.format(len(design), design_str, rep_str, str(params)))
 
 
     def addTrialsFromCSV(self, file_name=None, sep='\t', block=None, 
