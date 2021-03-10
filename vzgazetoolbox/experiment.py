@@ -517,7 +517,7 @@ class Experiment(object):
                 writer.writerow(td)
 
         # Sample and event data
-        if rec_data.lower() == 'single':
+        if rec_data.lower() == 'single' and self._recorder is not None:
             file_name_s = '{:s}_samples.tsv'.format(os.path.splitext(file_name)[0])
             file_name_e = '{:s}_events.tsv'.format(os.path.splitext(file_name)[0])
 
@@ -532,7 +532,7 @@ class Experiment(object):
                     self.recorder.saveRecording(sample_file=file_name_s, event_file=file_name_e, _append=True,
                                                 _data=(t.samples, t.events), meta_cols={'trial_number': t.number})
 
-        elif rec_data.lower() == 'separate':
+        elif rec_data.lower() == 'separate' and self._recorder is not None:
             for t in self.trials:
                 try:
                     file_name_s = '{:s}_samples_{:d}.tsv'.format(os.path.splitext(file_name)[0], t.number)
