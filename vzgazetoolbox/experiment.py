@@ -17,6 +17,8 @@ else:
     from time import clock as perf_counter	
 
 import viz
+import vizinfo
+import viztask
 import vizinput
 
 from .data import ParamSet
@@ -62,6 +64,8 @@ class Experiment(object):
         else:
             self.config = ParamSet()
 
+        self.participant = ParamSet()
+
         self._state = STATE_NEW
         self._cur_trial = 0
         self._trial_running = False
@@ -91,8 +95,12 @@ class Experiment(object):
         """ Base file name for output files, including date and time 
         and participant metadata if available. Generated and cached on 
         first access. """
-        if self._base_filename is None:                
+        if self._base_filename is None:
             fn = self.name
+            if 'id' in self.participant:
+                fn += '_' + str(self.participant.id)
+            if 'session' in self.participant:
+                fn += '_' + str(self.participant.session)
             fn += '_' + time.strftime('%Y%m%d_%H%M%S', time.localtime())
             self._base_filename = fn
         return self._base_filename
@@ -274,6 +282,62 @@ class Experiment(object):
                     self.trials = shuffled_trials
                     self._dlog('Trials randomized.')
     
+
+    def requestParticipantData(self, questions={}, session=True, age=True, 
+                               gender=True, expname=True):
+        """ Show UI to input participant ID and further details. 
+        Must be called as a Vizard task (i.e., using yield)!
+
+        Some common fields are included for standardization, others can
+        be added using the questions argument. Participant data is accessible
+        through the experiment object's .participant property.
+
+        Args:
+            questions (dict or iterable): Further data fields to show
+            session (bool): if True, include a session field
+            age (bool): if True, include an age field
+            gender (bool): if True, include a gender field
+            expname (bool): if True, show a field for experiment name
+        """
+        if type(questions) in (list, tuple):
+            questions = {q.replace(' ', ''):q for q in questions}
+
+        ui = vizinfo.InfoPanel('Please enter the following data:', title='Participant Information', 
+                               icon=False, align=viz.ALIGN_CENTER_CENTER)
+        uid = {}
+        if expname:
+            uid['__expname__'] = ui.addLabelItem('Experiment', viz.addTextbox())
+            uid['__expname__'].message(str(self.name))
+        uid['id'] = ui.addLabelItem('Participant ID', viz.addTextbox())
+        if session:
+            uid['session'] = ui.addLabelItem('Session', viz.addTextbox())
+        if age:
+            uid['age'] = ui.addLabelItem('Age', viz.addTextbox())
+        if gender:
+            uid['gender'] = ui.addLabelItem('Gender',viz.addDropList())
+            uid['gender'].addItems(['female', 'male', 'non-binary', 'prefer not to say'])
+
+        if len(questions) > 0:
+            ui.addSeparator()
+            for q in questions.keys():
+                uid[q] = ui.addLabelItem(questions[q], viz.addTextbox())
+
+        ui_submit = ui.addItem(viz.addButtonLabel('Save'), align=viz.ALIGN_RIGHT_CENTER)
+        yield viztask.waitButtonDown(ui_submit)
+
+        metadata = {}
+        for key in uid.keys():
+            if key == '__expname__':
+                self.name = uid['__expname__'].getMessage()
+                continue
+            metadata[key] = uid[key].getMessage()
+        if gender: 
+            metadata['gender'] = uid['gender'].getItems()[uid['gender'].getSelection()]
+        
+        ui.remove()
+        self.participant = ParamSet(metadata)
+        self._dlog('Participant Metadata: {:s}'.format(str(metadata)))
+
 
     def addSampleRecorder(self, auto_record=True, **kwargs):
         """ Set up sample recorder to record view, gaze, and other
