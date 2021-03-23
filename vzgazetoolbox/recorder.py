@@ -90,7 +90,7 @@ class SampleRecorder(object):
         self._scene = viz.addScene()
         self.fix_size = 0.5 # radius in degrees
         self.tar_plane_color = [0.4, 0.4, 0.4]
-        self._last_val_result = None
+        self._validation_results = []
         self._default_targets = targets
         
         # Gaze cursor
@@ -277,10 +277,18 @@ class SampleRecorder(object):
         self._cursor.visible(visible)
 
 
+    def getValResults(self):
+        """ Return results of all eye tracker validations performed as a list """
+        return copy.deepcopy(self._validation_results)
+
+
     def getLastValResult(self):
         """ Return a copy of the ValidationResult object resulting from the most
         recent gaze validation measurement. """
-        return copy.deepcopy(self._last_val_result)
+        if len(self._validation_results) > 0:
+            return copy.deepcopy(self._validation_results[-1])
+        else:
+            return None
 
 
     def _getRawRecording(self, clear=True):
@@ -799,8 +807,8 @@ class SampleRecorder(object):
         if self.recording:
                 self.recordEvent('VAL_RESULT {:.2f} {:.2f} {:.2f}'.format(d['acc'], d['rmsi'], d['sd']))
 
-        self._last_val_result = rv
-        viztask.returnValue(self._last_val_result)
+        self._validation_results.append(copy.deepcopy(rv))
+        viztask.returnValue(rv)
 
 
     def checkEyeTrackerDrift(self, threshold=1.5, auto_calibrate=True):
