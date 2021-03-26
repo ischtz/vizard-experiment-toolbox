@@ -4,6 +4,7 @@
 # Data structures and classes that do not depend on Vizard
 
 import json
+import copy
 import pickle
 
 try:
@@ -227,13 +228,22 @@ class ParamSet(object):
             return False
 
 
+    def toDict(self):
+        """ Return a copy of all attributes as a dict """
+        return copy.deepcopy(self.__dict__)
+
+    
     def toJSON(self):
         """ Return JSON representation of this ParamSet """
         return json.dumps(self.__dict__)
 
 
     def toJSONFile(self, json_file):
-        """ Save this ParamSet to a JSON file """
+        """ Save this ParamSet to a JSON file 
+        
+        Args:
+            json_file (str): Output file name
+        """
         with open(json_file, 'w') as jf:
             jf.write(json.dumps(self.__dict__))
 
@@ -283,24 +293,39 @@ class ValidationResult(object):
         return out
 
 
-    def save(self, file_name='val_result.pkl', format='pickle'):
-        """ Save validation data to a file. 
-        Pickling the whole object enables later access to built-in analysis
-        and plotting methods, but other file formats are available as well. 
-        
-        Args:
-            file_name (str): Output file name
-            format (str): File type, 'json' or 'pickle'
-        """
-        if format.lower() == 'json':
-            with open(file_name, 'w') as f:
-                f.write(json.dumps(self.__dict__))
-
-        elif format.lower() == 'pickle':
-            with open(file_name, 'wb') as f:
-                pickle.dump(self, f)
+    def toDict(self):
+        """ Return a copy of all results as a dict """
+        return copy.deepcopy(self.__dict__)
 
     
+    def toJSON(self):
+        """ Return JSON representation of validation data """
+        return json.dumps(self.__dict__)
+
+
+    def toJSONFile(self, json_file):
+        """ Save validation results to a JSON file 
+
+        Args:
+            json_file (str): Output file name
+        """
+        with open(json_file, 'w') as jf:
+            jf.write(json.dumps(self.__dict__))
+
+
+    def toPickleFile(self, pickle_file='val_result.pkl'):
+        """ Save ValidationResult object to a pickle file. 
+        
+        This will enable access to built-in analysis and 
+        plotting methods during later analysis. 
+
+        Args:
+            pickle_file (str): Output file name
+        """
+        with open(pickle_file, 'wb') as f:
+            pickle.dump(self, f)
+
+
     if _HAS_SCI_PKGS:
         def plotAccuracy(self):
             """ Spatial plot of mean and median accuracy in dataset """

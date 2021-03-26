@@ -8,6 +8,7 @@ import sys
 import csv
 import copy
 import time
+import json
 import random
 import itertools
 
@@ -286,7 +287,7 @@ class Experiment(object):
     def requestParticipantData(self, questions={}, session=True, age=True, 
                                gender=True, expname=True):
         """ Show UI to input participant ID and further details. 
-        Must be called as a Vizard task (i.e., using yield)!
+        Must be called as a Vizard task (using yield statement)!
 
         Some common fields are included for standardization, others can
         be added using the questions argument. Participant data is accessible
@@ -738,3 +739,31 @@ class Trial(object):
         else:
             return self._end_tick
 
+
+    def toDict(self):
+        """ Return all trial information as a dict """
+        d = {'index': self.index, 
+             'block': self.block, 
+             'status': self.status,
+             'times': {'start_time': self._start_time,
+                      'start_tick': self._start_tick,
+                      'end_time': self._end_time,
+                      'end_tick': self._end_tick},
+             'params': self.params.toDict(),
+             'results': self.results.toDict()}
+        return d
+
+
+    def toJSON(self):
+        """ Return all trial information as JSON """
+        return json.dumps(self.toDict())
+
+
+    def toJSONFile(self, json_file):
+        """ Save this trial to a JSON file 
+
+        Args:
+            json_file (str): Output file name
+        """
+        with open(json_file, 'w') as jf:
+            jf.write(json.dumps(self.toDict()))
