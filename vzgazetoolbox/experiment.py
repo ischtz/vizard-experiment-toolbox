@@ -611,6 +611,35 @@ class Experiment(object):
                 except AttributeError:
                     pass # Skip trials without recorded data
 
+
+    def toDict(self):
+        """ Return all experiment data and results as dict """
+        e = {'name': self.name,
+             'config': self.config.toDict(),
+             'participant': self.participant.toDict()}
+
+        for trial in self.trials:
+            if 'trials' not in e.keys():
+                e['trials'] = []
+            e['trials'].append(trial.toDict())
+
+        if self.recorder is not None:
+            if len(self.recorder._validation_results) > 0:
+                e['eye_tracker_validations'] = [v.toDict() for v in self.recorder._validation_results]
+        return e
+
+
+    def saveExperimentData(self, json_file=None):
+        """ Save all experimental data to JSON file """
+        if json_file is None:
+            json_file = self.output_file_name + '.json'
+
+        with open(json_file, 'w') as jf:
+            jf.write(json.dumps(self.toDict()))
+        self._dlog('Saved experiment data to {:s}.'.format(str(json_file)))
+
+
+
 class Trial(object):
 
     def __init__(self, params=None, index=-1, block=None):
