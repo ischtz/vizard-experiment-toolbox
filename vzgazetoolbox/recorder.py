@@ -69,7 +69,9 @@ class SampleRecorder(object):
         self.MISSING = missing_val
 
         # Latest gaze data
-        self._gazedir = [self.MISSING, self.MISSING, self.MISSING] 
+        self._gazemat = viz.Matrix()
+        self._gazematL = viz.Matrix()
+        self._gazematR = viz.Matrix()
         self._gaze3d = [self.MISSING, self.MISSING, self.MISSING]
         self._gaze3d_valid = False
         self._gaze3d_intersect = None
@@ -242,9 +244,27 @@ class SampleRecorder(object):
         return self._gaze3d
 
 
-    def getCurrentGazeMatrix(self):
-        """ Returns the current gaze direction transform matrix """
-        return self._gazedir
+    def getCurrentGazeMatrix(self, eye=viz.BOTH_EYE):
+        """ Returns the current gaze direction transform matrix 
+        
+        Args:
+            eye (int): Eye to return gaze matrix for, e.g. viz.LEFT_EYE
+        """
+        err = 'The eye= argument requires monocular gaze data, which is not available for the current eye tracker.'
+        if eye is not None:
+            if eye == viz.LEFT_EYE:
+                if not self._tracker_has_eye_flag:
+                    return NotImplementedError(err)
+                else:
+                    return self._gazematL
+
+            elif eye == viz.RIGHT_EYE:
+                if not self._tracker_has_eye_flag:
+                    return NotImplementedError(err)
+                else:
+                    return self._gazematR
+
+        return self._gazemat
 
 
     def getCurrentGazeTarget(self):
@@ -266,8 +286,8 @@ class SampleRecorder(object):
         """
         gaze_err = 9999
         while gaze_err >= tolerance:
-            eyeTarVec = vizmat.VectorToPoint(self._gazedir.getPosition(), target)
-            eyeGazeVec = self._gazedir.getForward()
+            eyeTarVec = vizmat.VectorToPoint(self._gazemat.getPosition(), target)
+            eyeGazeVec = self._gazemat.getForward()
             gaze_err = vizmat.AngleBetweenVector(eyeGazeVec, eyeTarVec) 
             yield viztask.waitTime(0.008)
 
@@ -850,7 +870,7 @@ class SampleRecorder(object):
             gT = self._tracker.getMatrix()		# Gaze-in-Tracker FoR
             gW = copy.deepcopy(gT)				# Gaze-in-World FoR
             gW.postMult(cW)
-            self._gazedir = gW
+            self._gazemat = gW
             nodes['tracker'] = gT
             nodes['gaze'] = gW
 
@@ -862,6 +882,8 @@ class SampleRecorder(object):
                 gWR = copy.deepcopy(gTR)
                 gWL.postMult(cW)
                 gWR.postMult(cW)
+                self._gazematL = gWL
+                self._gazematR = gWR
                 nodes['trackerL'] = gTL
                 nodes['trackerR'] = gTR
                 nodes['gazeL'] = gWL
