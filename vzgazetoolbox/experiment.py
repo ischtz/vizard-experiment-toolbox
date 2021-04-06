@@ -176,7 +176,7 @@ class Experiment(object):
         # Debug: print design description
         design_str = []
         for key in variables:
-            design_str.append(str(levels[key]))
+            design_str.append(str(len(levels[key])))
         design_str = 'x'.join(design_str)
         rep_str = ''
         if repeat != 1:
