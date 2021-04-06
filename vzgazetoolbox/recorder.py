@@ -32,7 +32,8 @@ class SampleRecorder(object):
 
     def __init__(self, eye_tracker=None, tracked_nodes=None, DEBUG=False, missing_val=-99999.0,
                  cursor=False, key_calibrate='c', key_preview='p', key_validate='v',
-                 targets=VAL_TAR_CR10, prealloc=324000, priority=viz.PRIORITY_PLUGINS+1):
+                 targets=VAL_TAR_CR10, prealloc=324000, priority=viz.PRIORITY_PLUGINS+1,
+                 tracked_nodes_rf=viz.ABS_GLOBAL):
         """ Eye movement recording and accuracy/precision measurement class.
 
         Args:
@@ -48,6 +49,7 @@ class SampleRecorder(object):
             prealloc (int): number of samples to preallocate to avoid skipped frames due to 
                 Python list extension. Default should be good for 60 min at 90 Hz.
             priority: Vizard priority value to apply to sample collection task
+            tracked_nodes_rf: Reference frame for tracked nodes, default: viz.ABS_GLOBAL
         """
         self.debug = DEBUG
         self.priority = priority
@@ -64,6 +66,7 @@ class SampleRecorder(object):
         if tracked_nodes is not None and type(tracked_nodes) == dict:
             for label in list(tracked_nodes.keys()):
                 self.addTrackedNode(node=tracked_nodes[label], label=label)
+        self._tracked_nodes_rf = tracked_nodes_rf
 
         # Value for missing data, since we can't use np.nan
         self.MISSING = missing_val
@@ -907,7 +910,7 @@ class SampleRecorder(object):
         if self.recording:
             # Additional tracked nodes
             for obj in self._tracked_nodes.keys():
-                nodes[obj] = self._tracked_nodes[obj].getMatrix()
+                nodes[obj] = self._tracked_nodes[obj].getMatrix(mode=self._tracked_nodes_rf)
 
             sample = ((time_ms, frame, clock), nodes)
             self.recordSample(sample=sample)
@@ -959,7 +962,7 @@ class SampleRecorder(object):
                     nodes['gazeR'] = gWR
 
             for obj in self._tracked_nodes.keys():
-                nodes[obj] = self._tracked_nodes[obj].getMatrix()
+                nodes[obj] = self._tracked_nodes[obj].getMatrix(mode=self._tracked_nodes_rf)
 
         # Store position and orientation data
         for lbl, node_matrix in nodes.items():
