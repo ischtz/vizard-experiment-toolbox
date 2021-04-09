@@ -780,6 +780,10 @@ class Trial(object):
                       'end_tick': self._end_tick},
              'params': self.params.toDict(),
              'results': self.results.toDict()}
+        if 'samples' in self.__dict__.keys():
+            d['samples'] = self.samples
+        if 'events' in self.__dict__.keys():
+            d['events'] = self.events
         return d
 
 
