@@ -185,7 +185,7 @@ class Experiment(object):
 
 
     def addTrialsFromCSV(self, file_name=None, sep='\t', block=None, 
-                         block_col=None, params={}):
+                         block_col=None, params={}, num_rows=None):
         """ Read a list of trials from a CSV file, adding the columns
         as parameter values to each trial (one trial per row). If no file is 
         specified, show Vizard file selection dialog.
@@ -197,6 +197,7 @@ class Experiment(object):
             block_col (str): Column name to use for block numbering
             params (dict): Parameter values to set in all trials
                 (Caution: Will override identically named columns from input file!)
+            num_rows (int): How many trials to read (at least 1, default: all)
         """
         if file_name is None:
             # Show file dialog and pick a reasonable default for the separator
@@ -243,6 +244,10 @@ class Experiment(object):
 
                 self.trials.append(Trial(params=cparams, index=trial_no, block=bl))
                 trial_no += 1
+
+                if num_rows is not None:
+                    if trial_no >= num_rows:
+                        break
 
         self._updateBlocks()
 
