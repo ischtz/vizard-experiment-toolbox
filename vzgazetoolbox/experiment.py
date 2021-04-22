@@ -184,7 +184,7 @@ class Experiment(object):
         self._dlog('Adding {:d} trials ({:s} design{:s}): {:s}'.format(len(design), design_str, rep_str, str(params)))
 
 
-    def addTrialsFromCSV(self, file_name=None, sep='\t', block=None, 
+    def addTrialsFromCSV(self, file_name=None, sep=None, block=None, 
                          block_col=None, params={}, num_rows=None):
         """ Read a list of trials from a CSV file, adding the columns
         as parameter values to each trial (one trial per row). If no file is 
@@ -192,7 +192,7 @@ class Experiment(object):
 
         Args:
             file_name (str): name of CSV file to read, or None to show selection dialog
-            sep (str): column separator
+            sep (str): column separator (default: tab)
             block (int): Block number to assign to trials (overrides block_col)
             block_col (str): Column name to use for block numbering
             params (dict): Parameter values to set in all trials
@@ -200,10 +200,13 @@ class Experiment(object):
             num_rows (int): How many trials to read (at least 1, default: all)
         """
         if file_name is None:
-            # Show file dialog and pick a reasonable default for the separator
             file_name = vizinput.fileOpen(filter=[('Trial files', '*.csv;*.tsv;*.dat;*.txt')])
+
+        if sep is None:
             ext = os.path.splitext(file_name)[1]
-            if ext.upper() in ['.CSV', '.DAT']:
+            if ext.upper() in ['.TSV']:
+                sep='\t'
+            else:
                 sep=';'
 
         trial_no = 0
