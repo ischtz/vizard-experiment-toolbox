@@ -35,7 +35,7 @@ def showVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, duration=3.
     text.remove()
 
 
-def waitVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' '):
+def waitVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' ', controller=None):
     """ Display head-locked message in VR and wait for key press.
     
     Args:
@@ -44,6 +44,7 @@ def waitVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' '):
         distance (float): Z rendering distance from MainView
         scale (float): Text node scaling factor
         keys (str): Key code(s) to dismiss message (see viztask.waitKeyDown)
+        controller (sensor): Specify a controller sensor to also dismiss on button press
     
     Returns: Vizard keypress event
     """
@@ -57,7 +58,10 @@ def waitVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' '):
     text_link = viz.link(viz.MainView, text, enabled=True)
     text_link.preTrans([0.0, 0.0, distance])
     
-    event = yield viztask.waitKeyDown(keys)
+    if controller is not None:
+        event = yield viztask.waitAny([viztask.waitKeyDown(keys), viztask.waitSensorDown(controller, None)])
+    else:
+        event = yield viztask.waitKeyDown(keys)
     text.remove()
     viztask.returnValue(event)
 
