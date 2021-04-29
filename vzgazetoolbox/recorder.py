@@ -910,7 +910,7 @@ class SampleRecorder(object):
         if self.recording:
             # Additional tracked nodes
             for obj in self._tracked_nodes.keys():
-                nodes[obj] = self._tracked_nodes[obj].getMatrix(mode=self._tracked_nodes_rf)
+                nodes[obj] = self._tracked_nodes[obj].getMatrix(self._tracked_nodes_rf)
 
             sample = ((time_ms, frame, clock), nodes)
             self.recordSample(sample=sample)
