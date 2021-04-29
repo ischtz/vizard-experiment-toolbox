@@ -569,6 +569,7 @@ class Experiment(object):
         for t in self.trials:
             td = dict(t.params)
             td.update(dict(t.results))
+            td['_trial_number'] = t.number
             td['_start_tick'] = t._start_tick
             td['_end_tick'] = t._end_tick
             td['_start_time'] = t._start_time
