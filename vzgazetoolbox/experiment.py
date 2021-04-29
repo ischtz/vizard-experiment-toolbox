@@ -631,7 +631,7 @@ class Experiment(object):
                 e['trials'] = []
             e['trials'].append(trial.toDict())
 
-        if self.recorder is not None:
+        if self._recorder is not None:
             if len(self.recorder._validation_results) > 0:
                 e['eye_tracker_validations'] = [v.toDict() for v in self.recorder._validation_results]
         return e
