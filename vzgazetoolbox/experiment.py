@@ -184,7 +184,7 @@ class Experiment(object):
         self._dlog('Adding {:d} trials ({:s} design{:s}): {:s}'.format(len(design), design_str, rep_str, str(params)))
 
 
-    def addTrialsFromCSV(self, file_name=None, sep=None, block=None, 
+    def addTrialsFromCSV(self, file_name=None, sep=None, repeat=1, block=None,
                          block_col=None, params={}, num_rows=None):
         """ Read a list of trials from a CSV file, adding the columns
         as parameter values to each trial (one trial per row). If no file is 
@@ -193,6 +193,7 @@ class Experiment(object):
         Args:
             file_name (str): name of CSV file to read, or None to show selection dialog
             sep (str): column separator (default: tab)
+            repeat (int): Number of times to repeat each trial read from the file
             block (int): Block number to assign to trials (overrides block_col)
             block_col (str): Column name to use for block numbering
             params (dict): Parameter values to set in all trials
@@ -245,8 +246,9 @@ class Experiment(object):
                 # Add any other params specified in function call
                 cparams.update(params)
 
-                self.trials.append(Trial(params=cparams, index=trial_no, block=bl))
-                trial_no += 1
+                for rep in range(0, repeat):
+                    self.trials.append(Trial(params=cparams, index=trial_no, block=bl))
+                    trial_no += 1
 
                 if num_rows is not None:
                     if trial_no >= num_rows:
