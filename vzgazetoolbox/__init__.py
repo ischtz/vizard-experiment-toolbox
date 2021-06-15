@@ -6,7 +6,7 @@ from .stats import *
 try:
     import viz
     from .experiment import *
-    from .vrfunctions import *
+    from .vrutil import *
     from .recorder import *
     from .replay import * 
     from .eyeball import *
