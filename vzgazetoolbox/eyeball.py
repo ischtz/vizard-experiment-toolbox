@@ -7,6 +7,8 @@ import os
 import viz
 import vizshape
 
+from .vrutil import addRayPrimitive
+
 _module_path = os.path.split(os.path.abspath(__file__))[0]
 
 class Eyeball(viz.VizNode):
@@ -33,8 +35,7 @@ class Eyeball(viz.VizNode):
         viz.VizNode.__init__(self, eye.id)
         
         # Add gaze direction pointer (invisible by default)
-        self.pointer = vizshape.addCylinder(height=gaze_length, radius=0.25, axis=vizshape.AXIS_Z, parent=eye)
-        self.pointer.setPosition([0.0, 0.0, (gaze_length / 2.0)-radius-0.005])
+        self.pointer = addRayPrimitive(origin=[0,0,0], direction=[0,0,1], length=gaze_length, parent=eye, linewidth=5, alpha=0.8)
         if not pointer:
             self.pointer.visible(viz.OFF)
 

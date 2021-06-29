@@ -218,3 +218,30 @@ def waitVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' ', c
     text.remove()
     viztask.returnValue(event)
 
+
+def addRayPrimitive(origin, direction, length=100, color=viz.RED, 
+                    alpha=0.6, linewidth=3, parent=None):
+    """ Create a Vizard ray primitive from two vertices. Can be used
+    to e.g. indicate a raycast or gaze vector in a VR environment.
+    
+    Args:
+        origin (3-tuple): Ray origin
+        direction (3-tuple): Unit direction vector
+        length (float): Ray length (set to 1 and use direction=<end>
+            to draw point-to-point ray)
+        color (3-tuple): Ray color
+        alpha (float): Ray alpha value
+        linewidth (int): OpenGL line drawing width in pixels
+        parent: Vizard node to use as parent
+    """
+    viz.startLayer(viz.LINES)
+    viz.lineWidth(linewidth)
+    viz.vertexColor(color)
+    viz.vertex(origin)
+    viz.vertex([x * length for x in direction])
+    ray = viz.endLayer()
+    ray.disable([viz.INTERSECTION, viz.SHADOW_CASTING])
+    ray.alpha(alpha)
+    if parent is not None:
+        ray.setParent(parent)
+    return ray
