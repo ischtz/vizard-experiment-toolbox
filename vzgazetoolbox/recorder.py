@@ -295,6 +295,89 @@ class SampleRecorder(object):
             yield viztask.waitTime(0.008)
 
 
+    def waitGazeDwell(self, objects, dwell=0.5):
+        """ Wait until one out of multiple objects is fixated for a 
+        certain amount of time, return the fixated (selected) node 
+
+        Args:
+            objects: list of nodes, or dict with nodes as values
+            dwell (float): Selection dwell time in seconds
+        """
+        if type(objects) == dict:
+            o = {obj.id: obj for obj in objects.values()}
+        else:
+            o = {obj.id: obj for obj in objects}
+        d = {id: 0.0 for id in o.keys()}
+
+        while True:
+            dt = viz.getFrameElapsed()
+            if self._gaze3d_valid:
+                for id in o.keys():
+                    if self._gaze3d_intersect == o[id]:
+                        d[id] += dt
+                    else:
+                        # Reset dwell for all non-fixated targets
+                        d[id] = 0.0
+
+            yield viztask.waitTime(0.008)
+            
+            for id in d.keys():
+                if d[id] >= dwell:
+                    viztask.returnValue(o[id])
+
+    
+    def waitGazeSelectionFeedback(self, objects, dwell=0.5, highlight_color=None, 
+                                  select_color=None, feedback_dur=0.5):
+        """ Wait until one out of multiple objects is selected by
+        fixating for a given dwell time. Highlights the currently fixated
+        object and gives visual feedback of selection.
+        
+        Args:
+            objects: list of nodes, or dict with nodes as values
+            dwell (float): Selection dwell time in seconds
+            highlight_color (3-tuple): Emissive color to indicate current object
+            select_color (3-tuple): Color to set the selected object to
+            feedback_dur (float): Duration of color feedback in seconds
+        """
+        if type(objects) == dict:
+            o = {obj.id: obj for obj in objects.values()}
+        else:
+            o = {obj.id: obj for obj in objects}
+        d = {id: 0.0 for id in o.keys()}
+        h = {id: o[id].getEmissive() for id in o.keys()}
+        c = {id: o[id].getColor() for id in o.keys()}
+
+        while True:
+            last_id = -1
+            dt = viz.getFrameElapsed()
+            if self._gaze3d_valid:
+                for id in o.keys():
+                    if self._gaze3d_intersect == o[id]:
+                        d[id] += dt
+                        last_id = id
+                    else:
+                        d[id] = 0.0 # reset dwell
+
+            if highlight_color is not None:
+                for id in o.keys():
+                    if id == last_id:
+                        o[id].emissive(highlight_color)
+                    else:
+                        o[id].emissive(h[id])
+
+            yield viztask.waitTime(0.008)
+            
+            for id in d.keys():
+                o[id].emissive(h[id]) # make sure to reset all highlights
+                if d[id] >= dwell:
+                    
+                    if select_color is not None and feedback_dur > 0:
+                        o[id].color(select_color)
+                        yield viztask.waitTime(feedback_dur)
+                        o[id].color(c[id])
+                    viztask.returnValue(o[id])
+
+
     def showGazeCursor(self, visible):
         """ Set visibility of the gaze cursor node """
         self._cursor.visible(visible)
