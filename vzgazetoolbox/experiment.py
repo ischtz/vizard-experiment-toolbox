@@ -371,6 +371,22 @@ class Experiment(object):
         self._auto_record = auto_record
 
     
+    def addSteamVRDebugOverlay(self, enable=False, hotkey=viz.KEY_F12):
+        """ Add a SteamVR debug overlay to the experiment, which can help
+        measure positions in a virtual environment, determine controller IDs, 
+        etc. Press hotkey to activate (default: F12).
+        
+        Args:
+            enable (bool): Whether the overlay should be visible from the start
+            hotkey: Any Vizard key specification, used to show/hide overlay
+        """
+        try:
+            from .steamvr_debug import SteamVRDebugOverlay
+            self.debugger = SteamVRDebugOverlay(enable=enable, hotkey=hotkey)
+        except: 
+            print('Could not add SteamVR debug overlay. Is SteamVR installed and active?')
+
+
     def _updateBlocks(self):
         """ Rebuild experiment list of blocks and corresponding trials """
         self._blocks = []
