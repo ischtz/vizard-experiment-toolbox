@@ -544,6 +544,37 @@ class Experiment(object):
         viz.sendEvent(TRIAL_END_EVENT, self, self.trials[self._cur_trial])
 
 
+    def run(self, trial_task, pre_trial_task=None, post_trial_task=None):
+        """ Run all trials in current order, executing the trial_task each time
+        
+        All tasks must accept two arguments: experiment and trial, e.g.
+        def TrialTask(experiment, trial):
+            yield doSomething
+
+        Args:
+            trial_task: Vizard task (containing "yield") to run each trial
+            pre_trial_task: Optional task to run before a trial, e.g. to set up stimuli
+            post_trial_task: Optional task to run after a trial
+        """
+        if self._state == STATE_RUNNING:
+            raise RuntimeError('The experiment is already running!')
+            return
+        if len(self.trials) < 1:
+            raise RuntimeError('No trials to run!')
+            return
+
+        while not self.done:
+            if pre_trial_task is not None:
+                yield pre_trial_task(self, self.currentTrial)
+            
+            self.startNextTrial()
+            yield trial_task(self, self.currentTrial)
+            self.endCurrentTrial(self.currentTrial)
+
+            if post_trial_task is not None:
+                yield post_trial_task(self, self.currentTrial)
+
+
     def saveTrialData(self, file_name=None, sep='\t', rec_data='single'):
         """ Shortcut to saveTrialDataToCSV 
         
