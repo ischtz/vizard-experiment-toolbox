@@ -29,6 +29,11 @@ STATE_NEW = 0
 STATE_RUNNING = 10
 STATE_DONE = 20
 
+EXPERIMENT_START_EVENT = viz.getEventID('ExperimentStart')
+EXPERIMENT_END_EVENT = viz.getEventID('ExperimentStart')
+TRIAL_START_EVENT = viz.getEventID('TrialStart')
+TRIAL_END_EVENT = viz.getEventID('TrialEnd')
+
 
 class Experiment(object):
     
@@ -483,6 +488,8 @@ class Experiment(object):
         self._cur_trial = trial_idx
         if self._state < STATE_RUNNING:
             self._state = STATE_RUNNING
+            viz.sendEvent(EXPERIMENT_START_EVENT, self, self.trials[trial_idx])
+
         self.trials[trial_idx]._start(index=trial_idx)
         self._trial_running = True
 
@@ -494,7 +501,9 @@ class Experiment(object):
             print(self.trials[self._cur_trial].summary)
         else:
             self._dlog(self.trials[self._cur_trial].summary)
-     
+
+        viz.sendEvent(TRIAL_START_EVENT, self, self.trials[trial_idx])
+
 
     def endCurrentTrial(self, print_summary=True):
         """ End the currently running trial 
@@ -516,6 +525,8 @@ class Experiment(object):
         if self._cur_trial + 1 >= len(self.trials):
             # Stop experiment if this was the last trial
             self._state = STATE_DONE
+            viz.sendEvent(EXPERIMENT_END_EVENT, self, self.trials[self._cur_trial])
+
         self._dlog('Ended trial {:d}'.format(self._cur_trial))
         self._trial_running = False
 
@@ -526,6 +537,8 @@ class Experiment(object):
             print(self.trials[self._cur_trial].summary)
         else:
             self._dlog(self.trials[self._cur_trial].summary)
+
+        viz.sendEvent(TRIAL_END_EVENT, self, self.trials[self._cur_trial])
 
 
     def saveTrialData(self, file_name=None, sep='\t', rec_data='single'):

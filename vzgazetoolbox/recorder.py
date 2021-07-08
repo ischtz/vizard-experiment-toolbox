@@ -27,6 +27,11 @@ if sys.version_info[0] == 3:
 else:
     from time import clock as perf_counter	
 
+VALIDATION_START_EVENT = viz.getEventID('EyeTrackerValidationStart')
+VALIDATION_END_EVENT = viz.getEventID('EyeTrackerValidationEnd')
+RECORDING_START_EVENT = viz.getEventID('RecordingStartEvent')
+RECORDING_END_EVENT = viz.getEventID('RecordingEndEvent')
+
 
 class SampleRecorder(object):
 
@@ -692,6 +697,8 @@ class SampleRecorder(object):
                 # Central target drift check (default)
                 targets = VAL_TAR_C
 
+        viz.sendEvent(VALIDATION_START_EVENT)
+
         # Set up targets in validation scene
         root = viz.addGroup(scene=self._scene)
         t_dists = []
@@ -956,6 +963,7 @@ class SampleRecorder(object):
                 self.recordEvent('VAL_RESULT {:.2f} {:.2f} {:.2f}'.format(d['acc'], d['rmsi'], d['sd']))
 
         self._validation_results.append(copy.deepcopy(rv))
+        viz.sendEvent(VALIDATION_END_EVENT)
         viztask.returnValue(rv)
 
 
@@ -1179,6 +1187,7 @@ class SampleRecorder(object):
                 self._dlog('Recording started (forcing Vizard updates is on!)')
             else:
                 self._dlog('Recording started.')
+            viz.sendEvent(RECORDING_START_EVENT)
 
 
     def stopRecording(self):
@@ -1188,7 +1197,8 @@ class SampleRecorder(object):
             self.recordEvent('REC_STOP')
             self._dlog('Recording stopped.')
             self._force_update = False
-        
+            viz.sendEvent(RECORDING_END_EVENT)
+
 
     def saveRecording(self, sample_file=None, event_file=None, clear_samples=True, clear_events=True, 
                       sep='\t', quat=False, meta_cols={}, _data=None, _append=False):
