@@ -181,12 +181,15 @@ class Experiment(object):
         # Debug: print design description
         design_str = []
         for key in variables:
-            design_str.append(str(len(levels[key])))
+            if type(levels[key]) == int:
+                design_str.append(str(levels[key]))
+            else:
+                design_str.append(str(len(levels[key])))
         design_str = 'x'.join(design_str)
         rep_str = ''
         if repeat != 1:
             rep_str = ', {:d} reps'.format(repeat)
-        self._dlog('Adding {:d} trials ({:s} design{:s}): {:s}'.format(len(design), design_str, rep_str, str(params)))
+        self._dlog('Adding {:d} trials ({:s} design{:s}), params: {:s}'.format(len(design), design_str, rep_str, str(params)))
 
 
     def addTrialsFromCSV(self, file_name=None, sep=None, repeat=1, block=None,
