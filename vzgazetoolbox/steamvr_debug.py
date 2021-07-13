@@ -24,6 +24,9 @@ import steamvr
 
 from .vrutil import addRayPrimitive, showVRText
 
+DEBUGGER_SHOW_EVENT = viz.getEventID('SteamVRDebugOverlayShowEvent')
+DEBUGGER_HIDE_EVENT = viz.getEventID('SteamVRDebugOverlayHideEvent')
+
 
 class SteamVRDebugOverlay(object):
 
@@ -278,14 +281,21 @@ class SteamVRDebugOverlay(object):
     def enable(self, value):
         """ Set visibility of all debug objects and enable 
         or disable key callbacks (except the main debug toggle) """
-        self._enable = value
+        if value == -1:
+            self._enable = not self._enable
+        else:
+            self._enable = value
         for obj in self._obj:
-            obj.visible(value)
+            obj.visible(self._enable)
         for c in self._callbacks:
-            c.setEnabled(value)
+            c.setEnabled(self._enable)
         if len(self._points) > 0:
             for point in self._points:
-                point.visible(value)
+                point.visible(self._enable)
+        if self._enable:
+            viz.sendEvent(DEBUGGER_SHOW_EVENT)
+        elif not self._enable:
+            viz.sendEvent(DEBUGGER_HIDE_EVENT)
 
 
     def showLighthouseRays(self, state):
