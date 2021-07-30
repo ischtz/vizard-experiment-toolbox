@@ -241,6 +241,10 @@ class SampleReplay(object):
         s = []
         with open(sample_file, 'r') as sf:
             reader = csv.DictReader(sf, delimiter=sep)
+            if len(reader.fieldnames) == 1:
+                m = 'Warning: Only a single column read from recording file. Is the field separator set correctly (e.g., sep=";")?\n'
+                print(m)
+
             HEADER = reader.fieldnames
             for row in reader:
                 sample = {}

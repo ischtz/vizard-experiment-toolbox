@@ -224,6 +224,10 @@ class Experiment(object):
         trial_no = 0
         with open(file_name, 'r') as tf:
             reader = csv.DictReader(tf, delimiter=sep)
+            if len(reader.fieldnames) == 1:
+                m = 'Warning: Only a single column read from trial file. Is the field separator set correctly (e.g., sep=";")?\n'
+                print(m)
+
             for row in reader:
                 cparams = {}
                 for h in reader.fieldnames:
