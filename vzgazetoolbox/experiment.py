@@ -135,8 +135,9 @@ class Experiment(object):
         for t in range(0, num_trials):
             tparams = copy.copy(params)
             tparams.update({key:val[t] for key, val in list_params.iteritems()})
-            self.trials.append(Trial(params=tparams, index=t, block=block))
+            self.trials.append(Trial(params=tparams, block=block))
 
+        self._updateTrialIndices()
         self._updateBlocks()
         self._dlog('Adding {:d} trials: {:s}'.format(num_trials, str(params)))
 
@@ -175,7 +176,9 @@ class Experiment(object):
             for var, lev in zip(variables, entry):
                 tparams[var] = lev
             tparams.update(params)
-            self.trials.append(Trial(params=tparams, index=ix, block=block))
+            self.trials.append(Trial(params=tparams, block=block))
+        
+        self._updateTrialIndices()
         self._updateBlocks()
 
         # Debug: print design description
@@ -255,13 +258,14 @@ class Experiment(object):
                 cparams.update(params)
 
                 for rep in range(0, repeat):
-                    self.trials.append(Trial(params=cparams, index=trial_no, block=bl))
+                    self.trials.append(Trial(params=cparams, block=bl))
                     trial_no += 1
 
                 if num_rows is not None:
                     if trial_no >= num_rows:
                         break
 
+        self._updateTrialIndices()
         self._updateBlocks()
 
         if '_trial_input_files' not in self.config:
@@ -300,6 +304,7 @@ class Experiment(object):
                         shuffled_trials.extend(btrials)
                     self.trials = shuffled_trials
                     self._dlog('Trials randomized.')
+            self._updateTrialIndices()
     
 
     def requestParticipantData(self, questions={}, session=True, age=True, 
@@ -385,6 +390,12 @@ class Experiment(object):
             self.debugger = SteamVRDebugOverlay(enable=enable, hotkey=hotkey)
         except: 
             print('Could not add SteamVR debug overlay. Is SteamVR installed and active?')
+
+
+    def _updateTrialIndices(self):
+        """ Set each trial object's index attribute based on the trial list """
+        for ix, t in enumerate(self.trials):
+            t._index = ix
 
 
     def _updateBlocks(self):
@@ -636,12 +647,12 @@ class Experiment(object):
         for t in self.trials:
             td = dict(t.params)
             td.update(dict(t.results))
+            td['_trial_index'] = t.index
             td['_trial_number'] = t.number
             td['_start_tick'] = t._start_tick
             td['_end_tick'] = t._end_tick
             td['_start_time'] = t._start_time
             td['_end_time'] = t._end_time
-            td['_original_idx'] = t._index
 
             # Collect superset of all param and result keys
             for key in list(td.keys()):
