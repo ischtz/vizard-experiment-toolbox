@@ -580,15 +580,17 @@ class Experiment(object):
             return
 
         while not self.done:
+            self.startNextTrial()
+
             if pre_trial_task is not None:
                 yield pre_trial_task(self, self.currentTrial)
             
-            self.startNextTrial()
             yield trial_task(self, self.currentTrial)
-            self.endCurrentTrial(self.currentTrial)
 
             if post_trial_task is not None:
                 yield post_trial_task(self, self.currentTrial)
+
+            self.endCurrentTrial(self.currentTrial)
 
 
     def saveTrialData(self, file_name=None, sep='\t', rec_data='single'):
