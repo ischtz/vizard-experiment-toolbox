@@ -583,7 +583,7 @@ class SampleRecorder(object):
         
         Args:
             targets: One of the following:
-                - Target set from vzgazetoolbox.VAL_TAR_*, OR
+                - Target set from vexptoolbox.VAL_TAR_*, OR
                 - List of targets (x, y, depth), x/y in visual degrees, depth in m
             cursor (bool): if True, show gaze cursor during preview
         """
@@ -678,14 +678,14 @@ class SampleRecorder(object):
         
         Args:
             targets: One of the following:
-                - Target set from vzgazetoolbox.VAL_TAR_*, OR
+                - Target set from vexptoolbox.VAL_TAR_*, OR
                 - List of targets (x, y, depth), x/y in visual degrees, depth in m
             dur (int): sampling duration per target, in ms
             tar_color (3-tuple): Target sphere color
             randomize (bool): if True, randomize target order in each validation
             metadata (dict): Dict of participant metadata to include with result
         
-        Returns: vzgazetoolbox.ValidationResult object 
+        Returns: vexptoolbox.ValidationResult object 
         """
         if self._tracker is None:
             raise RuntimeError('No eye tracker set up, validateEyeTracker() method not available!')

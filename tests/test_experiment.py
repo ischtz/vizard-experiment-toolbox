@@ -4,7 +4,7 @@ import os
 import time
 from tempfile import mkstemp
 
-from vzgazetoolbox.experiment import Trial, Experiment
+from vexptoolbox.experiment import Trial, Experiment
 
 
 class TestTrial(unittest.TestCase):

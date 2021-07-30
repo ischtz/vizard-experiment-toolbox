@@ -12,4 +12,4 @@ try:
     from .eyeball import *
 
 except ImportError:
-    print('Note: vzgazetoolbox is not running under Vizard, or Vizard packages could not be imported. Only analysis tools will be available.')
+    print('Note: vexptoolbox is not running under Vizard, or Vizard packages could not be imported. Only analysis tools will be available.')

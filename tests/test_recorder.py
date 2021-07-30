@@ -1,6 +1,6 @@
 import unittest
 
-from vzgazetoolbox.recorder import SampleRecorder
+from vexptoolbox.recorder import SampleRecorder
 
 class TestRecorder(unittest.TestCase):
     pass

@@ -1,6 +1,6 @@
 import unittest
 
-from vzgazetoolbox.replay import SampleReplay
+from vexptoolbox.replay import SampleReplay
 
 class TestReplay(unittest.TestCase):
     pass

@@ -4,7 +4,7 @@ import os
 import json
 from tempfile import mkstemp
 
-from vzgazetoolbox.data import ParamSet
+from vexptoolbox.data import ParamSet
 
 
 class TestParamSet(unittest.TestCase):

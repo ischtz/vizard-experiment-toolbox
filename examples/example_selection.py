@@ -18,7 +18,7 @@ import steamvr
 
 # Allow importing the toolbox from the default examples/ subfolder
 sys.path.append('..')
-import vzgazetoolbox
+import vexptoolbox
 
 # Initialize Vizard
 viz.setMultiSample(4)
@@ -52,7 +52,7 @@ def Main():
     eyeTracker.calibrate()
 
     # Instantiate a recorder object to continuously sample gaze
-    rec = vzgazetoolbox.SampleRecorder(eyeTracker, DEBUG=True)
+    rec = vexptoolbox.SampleRecorder(eyeTracker, DEBUG=True)
         
     # Set up key callbacks to show/hide the gaze cursor and exit the demo
     vizact.onkeydown(' ', rec.showGazeCursor, viz.TOGGLE)
@@ -60,7 +60,7 @@ def Main():
 
     # Fixation check: 
     # Wait until the user fixates the sphere before showing selection targets
-    yield vzgazetoolbox.showVRText('Please look at the orange sphere to begin!', duration=1.5)
+    yield vexptoolbox.showVRText('Please look at the orange sphere to begin!', duration=1.5)
     fixation = vizshape.addSphere(radius=0.05, color=viz.YELLOW_ORANGE, pos=(0.0, 2.0, 4.0))
     
     yield rec.waitGazeNearTarget(fixation.getPosition())

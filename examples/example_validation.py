@@ -15,7 +15,7 @@ import steamvr
 
 # Allow importing the toolbox from the default examples/ subfolder
 sys.path.append('..')
-import vzgazetoolbox
+import vexptoolbox
 
 # Initialize Vizard
 viz.setMultiSample(8)
@@ -39,7 +39,7 @@ if not eyeTracker:
 
 # Define validation target positions
 # Note that the toolbox comes with a variety of pre-built target sets, 
-# see vzgazetoolbox/data.py for details. 
+# see vexptoolbox/data.py for details. 
 targets = [ [0.0,  0.0,  6.0],
             [5.0,  0.0,  6.0],
             [0.0,  -5.0, 6.0],
@@ -56,7 +56,7 @@ def Main():
     eyeTracker.calibrate()
 
     # Instantiate a sample recorder object to handle validation
-    rec = vzgazetoolbox.SampleRecorder(eyeTracker, DEBUG=True)
+    rec = vexptoolbox.SampleRecorder(eyeTracker, DEBUG=True)
 
     # This will preview a set of gaze targets without validating,
     # press SPACE to continue

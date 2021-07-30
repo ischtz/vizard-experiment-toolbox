@@ -17,7 +17,7 @@ import steamvr
 
 # Allow importing the toolbox from the default examples/ subfolder
 sys.path.append('..')
-import vzgazetoolbox
+import vexptoolbox
 
 # Initialize Vizard
 viz.setMultiSample(8)
@@ -62,7 +62,7 @@ def Main():
     eyeTracker.calibrate()
 
     # Instantiate a sample recorder object that will record in the background
-    rec = vzgazetoolbox.SampleRecorder(eyeTracker, DEBUG=True)
+    rec = vexptoolbox.SampleRecorder(eyeTracker, DEBUG=True)
     
     # Set up a key callback to show/hide the gaze cursor in debug mode
     vizact.onkeydown(' ', rec.showGazeCursor, viz.TOGGLE)
