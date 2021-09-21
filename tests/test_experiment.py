@@ -183,6 +183,27 @@ class TestExperiment(unittest.TestCase):
         self.assertEqual(len(e), 8)
 
 
+    def test_randomize_trials(self):
+        
+        e = Experiment(name='unittest')
+        self.assertEqual(len(e), 0)
+
+        # Add empty trials with some blocks
+        e.addTrials(3, block=1)
+        e.addTrials(3, block=2)
+        e.addTrials(3, block=3)
+        self.assertEqual(len(e), 9)
+        self.assertEqual(e.trials[0].block, 1)
+        self.assertEqual(e.trials[3].block, 2)
+        self.assertEqual(e.trials[6].block, 3)
+
+        # Shuffle within block (should keep block order)
+        e.randomizeTrials()
+        self.assertEqual(e.trials[0].block, 1)
+        self.assertEqual(e.trials[3].block, 2)
+        self.assertEqual(e.trials[6].block, 3)
+
+    
     def test_save_trial_data_to_csv(self):
 
         # Test data 

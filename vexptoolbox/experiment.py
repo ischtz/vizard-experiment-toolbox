@@ -157,6 +157,9 @@ class Experiment(object):
             params (dict): Additional parameter values to set in all trials
             block (int): Optional block number to group trials into blocks
         """
+        if block is None:
+            block = 0
+
         iters = {}
         factors = []
         variables = list(levels.keys())
@@ -285,24 +288,29 @@ class Experiment(object):
         self._dlog('Trials cleared.')
 
     
-    def randomizeTrials(self, across_blocks=False):
+    def randomizeTrials(self, ignore_blocks=False, shuffle_blocks=False):
         """ Shuffle trial order globally or within blocks 
-        
+
         Args:
-            across_blocks (bool): if True, shuffle all trials 
+            ignore_blocks (bool): if True, shuffle all trials 
                 irrespective of their block number
+            shuffle_blocks (bool): if True, randomize experimental
+                blocks before randomizing trials within blocks
         """
         if self._state == STATE_RUNNING:
             raise ValueError('Cannot randomize trials while experiment is in progress!')
         else:
             self._updateBlocks()
             if self.trials is not None:
-                if across_blocks:
+                if ignore_blocks:
                     random.shuffle(self.trials)
                     self._dlog('Trials randomized across blocks.')
                 else:
                     shuffled_trials = []
-                    for block in copy.deepcopy(self._blocks):
+                    blocklist = copy.deepcopy(self._blocks)
+                    if shuffle_blocks:
+                        random.shuffle(blocklist)
+                    for block in blocklist:
                         btrials = self._block_trials[block]
                         random.shuffle(btrials)
                         shuffled_trials.extend(btrials)
