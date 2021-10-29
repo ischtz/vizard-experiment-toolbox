@@ -42,6 +42,7 @@ class SteamVRDebugOverlay(object):
         self.DEBUG_ALPHA = 0.6
         self.LABEL_SCALE = 0.05
         self.VALUE_SCALE = 0.015
+        self.MARKER_SIZE = 0.05
         self.HUD_POS = [0.4, 0.3, 1] # Works for Vive / Vive Pro
 
         # SteamVR devices
@@ -57,6 +58,19 @@ class SteamVRDebugOverlay(object):
         self._obj.append(vizshape.addGrid((100, 100), color=self.GRID_COLOR, pos=[0.0, 0.001, 0.0], parent=self._root))
         self._obj.append(vizshape.addAxes(pos=(0,0,0), scale=(0.5, 0.5, 0.5), parent=self._root))
         
+        # Set up possible marker objects
+        self._markers = {'sphere_red': vizshape.addSphere(radius=self.MARKER_SIZE / 2, color=viz.RED, parent=self._root),
+                         'sphere_green': vizshape.addSphere(radius=self.MARKER_SIZE / 2, color=viz.GREEN, parent=self._root),
+                         'sphere_blue': vizshape.addSphere(radius=self.MARKER_SIZE / 2, color=viz.BLUE, parent=self._root),
+                         'sphere_yellow': vizshape.addSphere(radius=self.MARKER_SIZE / 2, color=viz.YELLOW, parent=self._root),
+                         'cube_red': vizshape.addCube(size=self.MARKER_SIZE, color=viz.RED, parent=self._root),
+                         'cube_green': vizshape.addCube(size=self.MARKER_SIZE, color=viz.GREEN, parent=self._root),
+                         'cube_blue': vizshape.addCube(size=self.MARKER_SIZE, color=viz.BLUE, parent=self._root),
+                         'cube_yellow': vizshape.addCube(size=self.MARKER_SIZE, color=viz.YELLOW, parent=self._root)
+        }
+        for marker in self._markers.keys():
+            self._markers[marker].visible(False)
+
         # Note: X/Z axis rays moved up (y) by 1 mm to avoid z-fighting with the ground plane
         self._obj.append(addRayPrimitive(origin=[0,0.001,0], direction=[1, 0.001, 0], color=viz.RED, parent=self._root))   # x
         self._obj.append(addRayPrimitive(origin=[0,0.001,0], direction=[0, 0.001, 1], color=viz.BLUE, parent=self._root))  # z
@@ -141,6 +155,13 @@ class SteamVRDebugOverlay(object):
                 
                 c_axes = vizshape.addAxes(scale=(0.1, 0.1, 0.1))
                 viz.link(controller, c_axes)
+
+                markers = {'axes': c_axes}
+                for m in self._markers:
+                    markers[m] = self._markers[m].copy()
+                    markers[m].visible(False)
+                    viz.link(controller, markers[m])
+
                 c_text = viz.addText3D(str(cidx), scale=(self.LABEL_SCALE,) * 3, 
                                     parent=controller.model, pos=(-0.05, 0, 0))
                 val_x = viz.addText3D('X: 0.00 (123.0°)', scale=(self.VALUE_SCALE,) * 3, 
@@ -154,13 +175,16 @@ class SteamVRDebugOverlay(object):
                                           'axes': c_axes,
                                           'text': c_text,
                                           'values': [val_x, val_y, val_z],
-                                          'ui': viz.addText('N/A')}
+                                          'ui': viz.addText('N/A'),
+                                          'markers': markers,
+                                          'active_marker': 'axes'}
 
                 self._ui.addLabelItem(str(cidx), self.controllers[cidx]['ui'])
                 self._obj.extend([controller.model, c_axes, val_x, val_y, val_z])
                 print('* Found Controller: {:d}'.format(cidx))
 
                 self._callbacks.append(vizact.onsensordown(controller, steamvr.BUTTON_TRIGGER, self._storePoint, controller, cidx))
+                self._callbacks.append(vizact.onsensordown(controller, steamvr.BUTTON_TRACKPAD, self._switchMarker, cidx))
                 self._callbacks.append(vizact.onsensordown(controller, 1, self.savePoints))
                 self._callbacks.append(vizact.onsensordown(controller, 0, self.saveScreenshot))
         else:
@@ -304,6 +328,24 @@ class SteamVRDebugOverlay(object):
             lh['normal'].visible(state)
     
     
+    def _switchMarker(self, controller_index):
+        """ Switch the currently shown (and placed) marker """
+        m = list(self.controllers[controller_index]['markers'].keys())
+        m.sort()
+        mx = m.index(self.controllers[controller_index]['active_marker'])
+    
+        # Switch to next marker, or reset if reached the last one
+        if mx == len(self.controllers[controller_index]['markers']) - 1:
+            mx = 0
+        else:
+            mx += 1
+        self.controllers[controller_index]['active_marker'] = m[mx]
+
+        # Show the current marker and hide all others
+        for marker in self.controllers[controller_index]['markers']:
+            self.controllers[controller_index]['markers'][marker].visible(False)
+        self.controllers[controller_index]['markers'][m[mx]].visible(True)
+
     def _storePoint(self, controller, index):
         """ Save and print controller position / orientation data 
         
@@ -316,10 +358,15 @@ class SteamVRDebugOverlay(object):
         e = controller.getEuler()
         print(s.format(index, p[0], p[1], p[2], e[0], e[1], e[2]))
         
-        px = vizshape.addAxes(scale=(0.05, 0.05, 0.05), parent=self._root)
+        active_marker = self.controllers[index]['active_marker']
+        px = self.controllers[index]['markers'][active_marker].copy()
+        px.setParent(self._root)
         px.setPosition(p)
         px.setEuler(e)
+        if active_marker == 'axes':
+            px.setScale([self.MARKER_SIZE,] * 3)
         px._dev_index = index
+        px._label = active_marker
         self._points.append(px)
 
 
@@ -329,7 +376,7 @@ class SteamVRDebugOverlay(object):
         Args:
             filename (str): Name of CSV output file
         """
-        fields = ['point', 'device', 'posX', 'posY', 'posZ', 'eulerX', 'eulerY', 'eulerZ']
+        fields = ['point', 'device', 'marker', 'posX', 'posY', 'posZ', 'eulerX', 'eulerY', 'eulerZ']
         with open(filename, 'w') as pfile:
             writer = csv.DictWriter(pfile, delimiter='\t', lineterminator='\n', 
                                     fieldnames=fields, extrasaction='ignore')
@@ -339,7 +386,7 @@ class SteamVRDebugOverlay(object):
                 e = point.getEuler()
                 writer.writerow({'point': pidx, 'posX': p[0], 'posY': p[1], 'posZ': p[2], 
                                 'eulerX': e[0], 'eulerY': e[1], 'eulerZ': e[2], 
-                                'device': point._dev_index})
+                                'device': point._dev_index, 'marker': point._label})
 
         viztask.schedule(showVRText('Points data saved.'))
         print('Points data saved.')
