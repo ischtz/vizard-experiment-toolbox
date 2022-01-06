@@ -7,6 +7,8 @@ import json
 import copy
 import pickle
 
+from .stats import *
+
 try:
     # Some functionality such as plotting is only available when a scientific 
     # Python stack is installed, which by default is not the case in Vizard.
@@ -281,7 +283,9 @@ class ValidationResult(object):
         self._results = {}
         vars = ['acc', 'accX', 'accY', 'sd', 'sdX', 'sdY',  'rmsi', 'rmsiX', 'rmsiY', 'ipd', 
                 'acc_L', 'accX_L', 'accY_L', 'sd_L', 'sdX_L', 'sdY_L',  'rmsi_L', 'rmsiX_L', 'rmsiY_L',
-                'acc_R', 'accX_R', 'accY_R', 'sd_R', 'sdX_R', 'sdY_R',  'rmsi_R', 'rmsiX_R', 'rmsiY_R']
+                'acc_R', 'accX_R', 'accY_R', 'sd_R', 'sdX_R', 'sdY_R',  'rmsi_R', 'rmsiX_R', 'rmsiY_R',
+                'start_sample', 'end_sample']
+
         for v in vars:
             setattr(self, v, MISSING_VALUE)
             self._results[v] = MISSING_VALUE
@@ -339,6 +343,173 @@ class ValidationResult(object):
 
 
     if _HAS_SCI_PKGS:
+        def recomputeMetrics(self, start_sample=0, end_sample=None, 
+                            tar_x_range=None, tar_y_range=None, depth_range=None,
+                            agg_fun=None):
+            """ Recompute validation result metrics from stored sample data,
+            while allowing to specify the range of samples and targets to analyze
+
+            Args:
+                start_sample (int): First sample to use for each target
+                end_sample (int): Last sample to use for each target
+                tar_x_range: A 2-tuple of (min, max) horizontal target position, or
+                    a scalar value denoting maximum horizontal eccentricity
+                tar_y_range: Same as tar_x_range, but for vertical target positions
+                depth_range: A 2-tuple of (min, max) target depth, or a single scalar
+                agg_fun (function): Function to use for aggregation, default: mean
+
+            Returns: new ValidationResult object with updated target and average metrics
+            
+            """
+            tar_data = []
+            avg_data = {}
+            
+            if agg_fun is None:
+                agg_fun = mean
+
+            if tar_x_range is not None:
+                try:
+                    if len(tar_x_range) != 2:
+                        raise ValueError('tar_x_range must be scalar or contain exactly two values!')
+                except TypeError:
+                    tar_x_range = (-1 * tar_x_range, tar_x_range)
+            if tar_y_range is not None:
+                try:
+                    if len(tar_y_range) != 2:
+                        raise ValueError('tar_y_range must be scalar or contain exactly two values!')
+                except TypeError:
+                    tar_y_range = (-1 * tar_y_range, tar_y_range)
+            if depth_range is not None:
+                try:
+                    if len(depth_range) != 2:
+                        raise ValueError('depth_range must be scalar or contain exactly two values!')
+                except TypeError:
+                    depth_range = (0, depth_range)
+                if depth_range[0] < 0 or depth_range[1] < 0:
+                    raise ValueError('depth_range values cannot be negative!')
+
+            # By-target metrics
+            for tar, sam in zip(self.targets, self.samples):
+                
+                d = tar.copy()
+                if end_sample is None:
+                    end_sample = len(sam)
+                s = pd.DataFrame(sam[start_sample:end_sample])
+                
+                # Gaze position and offset
+                d['avgX'] = mean(s.targetGaze_X)
+                d['avgY'] = mean(s.targetGaze_Y)
+                d['medX'] = median(s.targetGaze_X)
+                d['medY'] = median(s.targetGaze_Y)
+                d['offX'] = mean(s.targetErr_X)
+                d['offY'] = mean(s.targetErr_Y)
+
+                # Angular gaze errors
+                tgtHMD = np.array([tar['xm'], tar['ym'], tar['d']]) # Target position re: HMD                
+                deltaX = np.abs(s.targetErr_X.values)
+                deltaY = np.abs(s.targetErr_Y.values)
+                delta = []
+                deltaM = [[], []]
+
+                # Recompute absolute angular deviations if necessary (later addition to format)
+                if 'targetErr' in s.columns:
+                    delta = s.targetErr.values
+                    if 'targetErrL' in s.columns and 'targetErrR' in s.columns:
+                        deltaM = np.array([s.targetErrL.values, s.targetErrR.values])
+
+                else:
+                    for ix in s.iterrows():
+
+                        # Combined gaze vector
+                        vEyeGaze = np.array((ix[1].trackVec_X, ix[1].trackVec_Y, ix[1].trackVec_Z))
+
+                        # Compute eye-target vector using actual eye origin on each sample
+                        # This is necessary to account for eye tracker jitter
+                        gazeOri = (ix[1].tracker_posX, ix[1].tracker_posY, ix[1].tracker_posZ)
+                        vEyeTar = tgtHMD - gazeOri
+                        vEyeTar = vEyeTar / np.linalg.norm(vEyeTar)
+
+                        # Compute angular error
+                        delta.append(np.degrees(np.arccos(np.clip(np.dot(vEyeTar, vEyeGaze), -1.0, 1.0))))
+
+                        # Compute error for monocular data, if available
+                        for eyei, eye in enumerate(['L', 'R']):
+                            if 'tracker{:s}_posX'.format(eye) in ix[1]:
+                                vEyeGazeM = (ix[1]['trackVec{:s}_X'.format(eye)], ix[1]['trackVec{:s}_Y'.format(eye)], ix[1]['trackVec{:s}_Z'.format(eye)])
+                                gazeOriM = (ix[1]['tracker{:s}_posX'.format(eye)], ix[1]['tracker{:s}_posY'.format(eye)], ix[1]['tracker{:s}_posZ'.format(eye)])
+                                vEyeTarM = tgtHMD - gazeOriM
+                                vEyeTarM = vEyeTarM / np.linalg.norm(vEyeTarM)
+                                deltaM[eyei].append(np.degrees(np.arccos(np.clip(np.dot(vEyeTarM, vEyeGazeM), -1.0, 1.0))))
+
+                # Accuracy
+                d['acc'] = mean(delta)
+                d['accX'] = mean(deltaX)
+                d['accY'] = mean(deltaY)
+                d['medacc'] = median(delta)
+                d['medaccX'] = mean(deltaX)
+                d['medaccY'] = mean(deltaY)
+
+                # Precision
+                d['sd'] = sd(delta)
+                d['sdX'] = sd(deltaX)
+                d['sdY'] = sd(deltaY)
+                d['rmsi'] = rmsi(delta)
+                d['rmsiX'] = rmsi(deltaX)
+                d['rmsiY'] = rmsi(deltaY)
+
+                # Monocular measures, if available
+                for eyei, eye in enumerate(['L', 'R']):
+                    if len(deltaM[eyei]) > 0:
+
+                        d['avgX_{:s}'.format(eye)] = mean(s.loc[:, 'targetGaze{:s}_X'.format(eye)].values)
+                        d['avgY_{:s}'.format(eye)] = mean(s.loc[:, 'targetGaze{:s}_Y'.format(eye)].values)
+                        d['medX_{:s}'.format(eye)] = median(s.loc[:, 'targetGaze{:s}_X'.format(eye)].values)
+                        d['medY_{:s}'.format(eye)] = median(s.loc[:, 'targetGaze{:s}_Y'.format(eye)].values)
+                        d['offX_{:s}'.format(eye)] = mean(s.loc[:, 'targetErr{:s}_X'.format(eye)].values)
+                        d['offY_{:s}'.format(eye)] = mean(s.loc[:, 'targetErr{:s}_Y'.format(eye)].values)
+                        
+                        d['acc_{:s}'.format(eye)] = mean(deltaM[eyei])
+                        d['accX_{:s}'.format(eye)] = mean(s.loc[:, 'targetErr{:s}_X'.format(eye)].abs().values)
+                        d['accY_{:s}'.format(eye)] = mean(s.loc[:, 'targetErr{:s}_Y'.format(eye)].abs().values)
+                        d['medacc_{:s}'.format(eye)] = median(deltaM[eyei])
+                        d['medaccX_{:s}'.format(eye)] = median(s.loc[:, 'targetErr{:s}_X'.format(eye)].abs().values)
+                        d['medaccY_{:s}'.format(eye)] = median(s.loc[:, 'targetErr{:s}_Y'.format(eye)].abs().values)
+
+                        d['sd_{:s}'.format(eye)] = sd(deltaM[eyei])
+                        d['sdX_{:s}'.format(eye)] = sd(s.loc[:, 'targetErr{:s}_X'.format(eye)].values)
+                        d['sdY_{:s}'.format(eye)] = sd(s.loc[:, 'targetErr{:s}_Y'.format(eye)].values)
+                        d['rmsi_{:s}'.format(eye)] = rmsi(deltaM[eyei])                        
+                        d['rmsiX_{:s}'.format(eye)] = rmsi(s.loc[:, 'targetErr{:s}_X'.format(eye)].values)
+                        d['rmsiY_{:s}'.format(eye)] = rmsi(s.loc[:, 'targetErr{:s}_Y'.format(eye)].values)
+
+                tar_data.append(d)
+
+                # Collect target for aggregration, skip if outside specified range
+                if tar_x_range is not None and (tar['x'] < tar_x_range[0] or tar['x'] > tar_x_range[1]):
+                    continue
+                if tar_y_range is not None and (tar['y'] < tar_y_range[0] or tar['y'] > tar_y_range[1]):
+                    continue
+                if depth_range is not None and (tar['d'] < depth_range[0] or tar['d'] > depth_range[1]):
+                    continue
+                for var in d.keys():
+                    if var not in avg_data:
+                        avg_data[var] = []
+                    avg_data[var].append(d[var])
+
+
+            # Aggregate
+            for var in avg_data.keys():
+                avg_data[var] = agg_fun(avg_data[var])
+
+            avg_data['start_sample'] = start_sample
+            avg_data['end_sample'] = end_sample
+
+            return ValidationResult(result=avg_data, 
+                                    metadata=self.metadata, 
+                                    samples=self.samples, 
+                                    targets=tar_data)
+
+
         def plotAccuracy(self):
             """ Spatial plot of mean and median accuracy in dataset """
             fig = plt.figure()
