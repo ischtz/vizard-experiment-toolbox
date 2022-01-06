@@ -164,6 +164,7 @@ VAL_TAR_SQ15 = [[0.0,  0.0,   6.0],
                 [5.0, 15.0,   6.0],
                 [10.0, 15.0,  6.0]] # N=49
 
+MISSING_VALUE = -99999.0
 
 
 class ParamSet(object):
@@ -268,21 +269,27 @@ class ValidationResult(object):
     def __init__(self, result=None, metadata={}, targets=None, samples=None):
 
         self.metadata = metadata
+        self.targets = targets	# by-target list of validation result dicts
+        self.samples = samples	# by-target list of raw sample data
+        self._results = {}
 
-        # Global average accuracy, precision, etc. 
+        self._setResults(result)
+
+
+    def _setResults(self, result):
+        """ Update aggregate result variables based on a dictionary """
+        self._results = {}
         vars = ['acc', 'accX', 'accY', 'sd', 'sdX', 'sdY',  'rmsi', 'rmsiX', 'rmsiY', 'ipd', 
                 'acc_L', 'accX_L', 'accY_L', 'sd_L', 'sdX_L', 'sdY_L',  'rmsi_L', 'rmsiX_L', 'rmsiY_L',
                 'acc_R', 'accX_R', 'accY_R', 'sd_R', 'sdX_R', 'sdY_R',  'rmsi_R', 'rmsiX_R', 'rmsiY_R']
         for v in vars:
-            setattr(self, v, -99999.0)
+            setattr(self, v, MISSING_VALUE)
+            self._results[v] = MISSING_VALUE
             if result is not None and v in result.keys():
                 setattr(self, v, result[v])
+                self._results[v] = result[v]
 
-        # By-target data
-        self.targets = targets	# by-target list of validation result dicts
-        self.samples = samples	# by-target list of raw sample data
-
-
+    
     def __str__(self):
         """ Printable validation summary """
         s = 'Validation Result: Acc: {:.2f} (x: {:.2f}, y: {:.2f}), RMSi: {:.2f}, SD: {:.2f}'
@@ -291,6 +298,11 @@ class ValidationResult(object):
             s = '\n  Target #{:d} - x: {:+.1f}, y: {:+.1f}, d: {:.1f} - Acc: {:.2f} (x: {:.2f}, y: {:.2f})\t RMSi: {:.2f}, SD: {:.2f}'
             out += s.format(tar['set_no'], tar['x'], tar['y'], tar['d'], tar['acc'], tar['accX'], tar['accY'], tar['rmsi'], tar['sd'])
         return out
+
+
+    @property
+    def results(self):
+        return self._results.copy()
 
 
     def toDict(self):
