@@ -83,6 +83,7 @@ class SampleRecorder(object):
         self._gaze3d = [self.MISSING, self.MISSING, self.MISSING]
         self._gaze3d_valid = False
         self._gaze3d_intersect = None
+        self._gaze3d_intersect_name = ''
         self._gaze3d_last_valid = None
 
         # Sample recording task
@@ -1032,6 +1033,7 @@ class SampleRecorder(object):
                 self._gaze3d = g3D_test.point
                 self._gaze3d_valid = True
                 self._gaze3d_intersect = g3D_test.object
+                self._gaze3d_intersect_name = g3D_test.name
                 self._gaze3d_last_valid = g3D_test.object
                 self._cursor.setPosition(g3D_test.point)
             else:
@@ -1120,10 +1122,12 @@ class SampleRecorder(object):
             s['gaze3d_posZ'] = self._gaze3d[2]
             if self._gaze3d_valid:
                 s['gaze3d_valid'] = 1
-                s['gaze3d_object'] = str(self._gaze3d_intersect)
+                s['gaze3d_object_id'] = int(self._gaze3d_intersect.id)
+                s['gaze3d_object_name'] = str(self._gaze3d_intersect_name)
             else:
                 s['gaze3d_valid'] = 0
-                s['gaze3d_object'] = ''
+                s['gaze3d_object_id'] = -1
+                s['gaze3d_object_name'] = ''
 
             # Device-specific eye tracking data
             if self._tracker_type == 'ViveProEyeTracker':
@@ -1236,7 +1240,7 @@ class SampleRecorder(object):
         # Eye tracker fields
         if self._tracker is not None:
             fields += ['gaze_posX', 'gaze_posY', 'gaze_posZ', 'gaze_dirX', 'gaze_dirY', 'gaze_dirZ',
-                       'gaze3d_valid', 'gaze3d_posX', 'gaze3d_posY', 'gaze3d_posZ', 'gaze3d_object']
+                       'gaze3d_valid', 'gaze3d_posX', 'gaze3d_posY', 'gaze3d_posZ', 'gaze3d_object_id', 'gaze3d_object_name']
 
             # Tracker-specific fields (not always available)
             special = ['gazeL_posX', 'gazeL_posY', 'gazeL_posZ', 'gazeL_dirX', 'gazeL_dirY', 'gazeL_dirZ',
