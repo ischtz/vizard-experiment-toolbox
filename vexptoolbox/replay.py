@@ -6,10 +6,12 @@
 import csv
 import random
 import colorsys
+from vexptoolbox.recorder import SampleRecorder
 
 import viz
 import vizact
 import vizinfo
+import vizinput
 import vizshape
 
 from .eyeball import Eyeball
@@ -126,10 +128,13 @@ class SampleReplay(object):
 
         # Load recording
         if recording is not None:
-            if type(recording) == str:
-                self.loadRecording(recording)
-            else:
+            if type(recording) == SampleRecorder:
                 self._samples = recording._samples
+            else:
+                try:
+                    self.loadRecording(recording)
+                except TypeError:
+                    print('Recording argument must be a SampleRecorder instance or valid file name!')
 
 
     def _set_ui(self):
@@ -231,14 +236,19 @@ class SampleReplay(object):
                 self._gaze[eye_pos]['ui'].disable()
 
 
-    def loadRecording(self, sample_file, sep='\t'):
+    def loadRecording(self, sample_file=None, sep='\t'):
         """ Load a SampleRecorder sample file for replay
         
         Args:
-            sample_file (str): Filename of CSV file to load
+            sample_file (str): Filename of CSV file to load. If no 
+                file is specified, show Vizard file selection dialog.
             sep (str): Field separator in CSV input file
         """
         s = []
+
+        if sample_file is None:
+            sample_file = vizinput.fileOpen(filter=[('Samples files', '*.csv;*.tsv;*.dat;*.txt')])
+
         with open(sample_file, 'r') as sf:
             reader = csv.DictReader(sf, delimiter=sep)
             if len(reader.fieldnames) == 1:
