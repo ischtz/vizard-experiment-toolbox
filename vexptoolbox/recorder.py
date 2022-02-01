@@ -820,13 +820,16 @@ class SampleRecorder(object):
                 eyeTarVec = vizmat.VectorToPoint(gazeOri, tgtHMD)
                 eyeGazeVec = (sam['trackVec_X'], sam['trackVec_Y'], sam['trackVec_Z'])
 
+                dC = vizmat.AngleBetweenVector(eyeGazeVec, eyeTarVec)
+                sam['targetErr'] = dC
+
                 angularDiff = vizmat.Transform()
                 angularDiff.makeVecRotVec(eyeTarVec, eyeGazeVec)
                 (dX, dY, _) = angularDiff.getEuler()
                 dY = -dY
                 sam['targetErr_X'], sam['targetErr_Y'] = dX, dY
 
-                delta.append(vizmat.AngleBetweenVector(eyeGazeVec, eyeTarVec))
+                delta.append(dC)
                 deltaX.append(dX)
                 deltaY.append(dY)
 
@@ -854,14 +857,17 @@ class SampleRecorder(object):
                                        sam['trackVec{:s}_Y'.format(eye)],
                                        sam['trackVec{:s}_Z'.format(eye)])
                         
+                        dCM = vizmat.AngleBetweenVector(eyeGazeVecM, eyeTarVecM)
+                        sam['targetErr{:s}'.format(eye)] = dCM
+
                         angularDiffM = vizmat.Transform()
                         angularDiffM.makeVecRotVec(eyeTarVecM, eyeGazeVecM)
                         (dXM, dYM, _) = angularDiff.getEuler()
-                        dYM = -dYM
-                        
+                        dYM = -dYM                        
                         sam['targetErr{:s}_X'.format(eye)] = dXM
                         sam['targetErr{:s}_Y'.format(eye)] = dYM
-                        deltaM[eyei].append(vizmat.AngleBetweenVector(eyeGazeVecM, eyeTarVecM))
+
+                        deltaM[eyei].append(dCM)
                         deltaXM[eyei].append(dXM)
                         deltaYM[eyei].append(dYM)
 
