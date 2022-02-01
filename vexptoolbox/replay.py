@@ -87,6 +87,9 @@ class SampleReplay(object):
             self._gaze['R']['node'] = None
             self._gaze['']['node'] = None
 
+        # Set eyes to easy to distinguish colors by default
+        self.setEyeColors(combined='brown', left='green', right='blue')
+
         self._frame = 0
         self._samples = []
         self._sample_time_offset = 0.0
@@ -428,4 +431,22 @@ class SampleReplay(object):
         Args:
             enabled (bool): if True, move MainView with replay data """
         self.replay_view = enabled
+
+    
+    def setEyeColors(self, combined=None, left=None, right=None):
+        """ Set color of eyes and gaze rays used for visualization 
+        
+        Args:
+            combined: Color tuple (R,G,B) or one of ['blue', 'green', 'brown', 'grey']
+            left: As 'combined', but for left eye
+            right: As 'combined', but for right eye
+        """
+        if combined is not None:
+            self._gaze['']['eye'].setEyeColor(combined)
+        if left is not None:
+            self._gaze['L']['eye'].setEyeColor(left)
+        if right is not None:
+            self._gaze['R']['eye'].setEyeColor(right)
+        
+
 

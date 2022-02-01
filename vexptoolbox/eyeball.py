@@ -50,7 +50,7 @@ class Eyeball(viz.VizNode):
         Args:
             color : RGB 3-tuple, or one of 'brown', 'blue', 'green', 'grey'
         """
-        if type(color) == str:
+        if color in self.eyecolors.keys():
             ec = self.eyecolors[color]
         else:
             ec = color
