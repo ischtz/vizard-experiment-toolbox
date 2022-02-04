@@ -482,6 +482,10 @@ class ValidationResult(object):
                         d['rmsiX_{:s}'.format(eye)] = rmsi(s.loc[:, 'targetErr{:s}_X'.format(eye)].values)
                         d['rmsiY_{:s}'.format(eye)] = rmsi(s.loc[:, 'targetErr{:s}_Y'.format(eye)].values)
 
+                # Inter-pupillary distance (only if both eyes were recorded)
+                if len(deltaM[0]) > 0 and len(deltaM[1]) > 0:
+                    d['ipd'] = mean(np.abs(s.trackerR_posX - s.trackerL_posX) * 1000.0)
+
                 tar_data.append(d)
 
                 # Collect target for aggregration, skip if outside specified range
