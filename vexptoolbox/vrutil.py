@@ -159,9 +159,8 @@ class ObjectCollection(dict):
         return ObjectCollection(_src=obj)
 
 
-
-def showVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, duration=3.0):
-    """ Display head-locked message in VR, e.g. for instructions.
+def showVRText(msg='Text', color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, duration=3.0):
+    """ Display head-locked message in VR for specified duration.
     
     Args:
         msg (str): Message text
@@ -170,15 +169,10 @@ def showVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, duration=3.
         scale (float): Text node scaling factor
         duration (float): Message display duration (seconds)
     """
-    # Create 3D text object
-    text = viz.addText3D(msg, scale=[scale, scale, scale], color=color)
-    text.resolution(1.0)
-    text.setThickness(0.1)
-    text.alignment(viz.ALIGN_CENTER)
-    
-    # Lock text to user viewpoint at fixed distance
-    text_link = viz.link(viz.MainView, text, enabled=True)
-    text_link.preTrans([0.0, 0.0, distance])
+    text = addHeadLockedText(msg=msg,
+                             color=color,
+                             distance=distance,
+                             scale=scale)
     
     # Fade text away after <duration> seconds
     fadeout = vizact.fadeTo(0, time=0.7)
@@ -188,7 +182,7 @@ def showVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, duration=3.
     text.remove()
 
 
-def waitVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' ', controller=None):
+def waitVRText(msg='Text', color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' ', controller=None):
     """ Display head-locked message in VR and wait for key press.
     
     Args:
@@ -201,6 +195,30 @@ def waitVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' ', c
     
     Returns: Vizard keypress event
     """
+    text = addHeadLockedText(msg=msg,
+                             color=color,
+                             distance=distance,
+                             scale=scale)
+
+    if controller is not None:
+        event = yield viztask.waitAny([viztask.waitKeyDown(keys), viztask.waitSensorDown(controller, None)])
+    else:
+        event = yield viztask.waitKeyDown(keys)
+    text.remove()
+    viztask.returnValue(event)
+
+
+def addHeadLockedText(msg='Text', color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05):
+    """ Add a head-locked text node, e.g. to display task feedback in VR.
+    
+    Args:
+        msg (str): Message text
+        color: RBG 3-tuple of color values
+        distance (float): Z rendering distance from MainView
+        scale (float): Text node scaling factor
+    
+    Returns: Vizard node3d object containing the text
+    """
     # Create 3D text object
     text = viz.addText3D(msg, scale=[scale, scale, scale], color=color)
     text.resolution(1.0)
@@ -210,13 +228,9 @@ def waitVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, keys=' ', c
     # Lock text to user viewpoint at fixed distance
     text_link = viz.link(viz.MainView, text, enabled=True)
     text_link.preTrans([0.0, 0.0, distance])
-    
-    if controller is not None:
-        event = yield viztask.waitAny([viztask.waitKeyDown(keys), viztask.waitSensorDown(controller, None)])
-    else:
-        event = yield viztask.waitKeyDown(keys)
-    text.remove()
-    viztask.returnValue(event)
+    text.link = text_link
+
+    return text
 
 
 def addRayPrimitive(origin, direction, length=100, color=viz.RED, 
