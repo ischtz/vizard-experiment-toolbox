@@ -159,6 +159,52 @@ class ObjectCollection(dict):
         return ObjectCollection(_src=obj)
 
 
+def steamVREasySetup(link_models=True, mono_mirror=True):
+    """ Initializes a SteamVR HMD and controllers using default settings. 
+    
+    This is a convenience function which essentially does the same as the
+    SteamVR examples bundled with Vizard, but in a single function call. 
+
+    Args:
+        link_models (bool): if True, show 3d models linked to the controllers
+        mono_mirror (bool): if True, show a monocular VR view in the main window
+    
+    Returns: (hmd, controllers), with:
+        hmd: reference to the SteamVR.HMD object
+        controllers: list of references to available controller objects
+    """
+    try:
+        import steamvr
+
+        controllers = []
+
+        hmd = steamvr.HMD()
+        navNode = viz.addGroup()
+        link = viz.link(navNode, viz.MainView)
+        link.preMultLinkable(hmd.getSensor())
+        hmd.link = link # Keep link object accessible
+        hmd.setMonoMirror(mono_mirror)
+
+        if steamvr.getControllerList():
+            for controller in steamvr.getControllerList():
+                controller.model = controller.addModel()
+                if not controller.model:
+                    controller.model = viz.addGroup()
+                controller.model.disable(viz.INTERSECTION)
+                c_link = viz.link(controller, controller.model)
+                controller.link = c_link
+                controllers.append(controller)
+
+        print('* SteamVREasySetup(): Initialized HMD and {:d} controllers.'.format(len(controllers)))
+        return (hmd, controllers)
+    
+    except ImportError:
+        e = '* SteamVREasySetup(): Error initializing SteamVR components. '
+        e+= 'Please check if SteamVR is installed and active!'
+        print(e)
+        return (None, None)
+
+
 def showVRText(msg='Text', color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, duration=3.0):
     """ Display head-locked message in VR for specified duration.
     
