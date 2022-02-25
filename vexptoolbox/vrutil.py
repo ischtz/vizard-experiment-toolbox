@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
-# VR helper functions
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
+# Assorted VR helper and convenience functions
 
 import os
 import glob

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
+
 from .data import *
 from .stats import * 
 

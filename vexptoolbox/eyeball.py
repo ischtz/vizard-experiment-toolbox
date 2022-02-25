@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
 # 3D Eyeball model class
 
 import os

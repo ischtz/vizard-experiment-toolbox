@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
 # Example Script: Recording gaze data
 # 
 # Press the space bar to toggle gaze cursor on and off

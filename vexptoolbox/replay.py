@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
 # Gaze and object position and orientation replay class
 
 import csv

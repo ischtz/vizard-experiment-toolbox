@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
-# Experiment framework classes
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
+# Classes relating to trial-based experimental design
 
 import os
 import sys

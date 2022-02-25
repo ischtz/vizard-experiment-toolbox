@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
-# Example Script: Dwell time selection and fixation check
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
+# Example Script: Dwell time gaze selection and fixation check
 # 
 # Press the space bar to toggle gaze cursor on and off,
 # Press Q to quit the demo

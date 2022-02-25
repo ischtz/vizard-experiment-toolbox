@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
 # Data structures and classes that do not depend on Vizard
 
 import json

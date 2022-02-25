@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
 # Statistics helper functions that work without numpy/scipy installed
 
 import math

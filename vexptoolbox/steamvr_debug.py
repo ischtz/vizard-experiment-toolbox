@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 
-# Vizard gaze tracking toolbox
+# vexptoolbox: Vizard Toolbox for Behavioral Experiments
 # SteamVR debug overlay class
 # 
 # Standalone version available at:
