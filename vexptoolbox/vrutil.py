@@ -9,6 +9,7 @@ import glob
 import viz
 import vizfx
 import vizact
+import vizinfo
 import viztask
 
 
@@ -277,6 +278,98 @@ def addHeadLockedText(msg='Text', color=[1.0, 1.0, 1.0], distance=2.0, scale=0.0
     text.link = text_link
 
     return text
+
+
+def waitVRInstruction(msg='Text', title='Title', force_str=False, 
+                      distance=2.5, height=None, billboard=True,
+                      resolution=(1920, 1080), size=(1.92, 1.08),
+                      font_size=50, keys=' ', controller=None):
+    """ Display a world-locked instruction panel in VR and wait for key press.
+    
+    Instructions can be provided as string or read from an external text file. 
+    Default is to show the panel at eye level at a distance of 2.5m. Depending on 
+    text length, you might need to adjust the font and/or canvas size. 
+
+    Args:
+        msg (str): One of:
+            - String: Message text to display on the instruction panel
+            - Valid text file name: File content is read and set as message text
+        title (str): Title bar text for instruction panel
+        force_str (bool): If True, treat *msg* as text even if it is a vald file name
+        distance (float): Z rendering distance from MainView (i.e., user's position)
+        height (float): Panel vertical center (Y). Defaults to user's eye height.
+        billboard (bool): If True, keep panel facing the viewer (default)
+        resolution (tuple): Pixel resolution of virtual canvas as (x, y)
+        size (tuple): Size of canvas object in meters as (x, y)
+        keys (str): Key code(s) to dismiss message (see viztask.waitKeyDown)
+        controller (sensor): Specify a controller sensor to also dismiss on button press
+    
+    Returns: Vizard keypress event upon key or button press
+    """
+    if not force_str:
+        try:
+            with open(msg, 'r') as tf:
+                text = tf.read()
+        except IOError: 
+            text = msg
+    else:
+        text = msg
+
+    hmd_pos = viz.MainView.getPosition()
+    if height is None:
+        height = hmd_pos[1]
+    pos = [0, height, distance]
+        
+    text = addWorldLockedCanvas(msg=text,
+                                title=title,
+                                pos=pos,
+                                billboard=billboard,
+                                resolution=resolution,
+                                size=size,
+                                font_size=font_size)
+
+    if controller is not None:
+        event = yield viztask.waitAny([viztask.waitKeyDown(keys), viztask.waitSensorDown(controller, None)])
+    else:
+        event = yield viztask.waitKeyDown(keys)
+    text.remove()
+    viztask.returnValue(event)
+
+
+def addWorldLockedCanvas(msg='Text', title='Title', pos=[0, 2, 2], billboard=False,
+                         resolution=(1920, 1080), size=(1.92, 1.08), font_size=50):
+    """ Add a world-locked text panel, e.g. for experiment instructions.
+    Convenience function for Vizard's vizinfo functionality with useful VR defaults.
+    
+    Args:
+        msg (str): Initial message text
+        title (str): Title bar text for InfoPanel
+        pos (3-tuple): World position for canvas center
+        billboard (bool): If True, keep canvas facing the viewer
+        resolution (tuple): Pixel resolution of virtual canvas as (x, y)
+        size (tuple): Size of canvas object in meters as (x, y)
+        font_size (int): Text font size
+    
+    Returns: Vizard node3d object containing the GUI canvas
+    """
+    canvas = viz.addGUICanvas(align=viz.ALIGN_CENTER)
+    canvas.setPosition(pos)
+    canvas.setRenderWorld(resolution=resolution, size=size)
+    canvas.setMouseStyle(0)
+    if billboard:
+        canvas.billboard(viz.BILLBOARD_YAXIS_GLOBAL)
+    
+    panel = vizinfo.InfoPanel(text=msg, 
+                              title=title, 
+                              parent=canvas, 
+                              key=None, 
+                              fontSize=font_size,
+                              align=viz.ALIGN_CENTER,
+                              wrapWidth=resolution[0],
+                              icon=False)    
+    canvas.panel = panel 
+
+    return canvas
 
 
 def addRayPrimitive(origin, direction, length=100, color=viz.RED, 
