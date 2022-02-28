@@ -2,6 +2,8 @@
 
 # vexptoolbox: Vizard Toolbox for Behavioral Experiments
 
+__version__ = '0.1'
+
 from .data import *
 from .stats import * 
 
