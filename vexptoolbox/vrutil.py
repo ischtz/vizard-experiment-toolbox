@@ -8,6 +8,7 @@ import glob
 
 import viz
 import vizfx
+import vizmat
 import vizact
 import vizinfo
 import viztask
@@ -398,3 +399,46 @@ def addRayPrimitive(origin, direction, length=100, color=viz.RED,
     if parent is not None:
         ray.setParent(parent)
     return ray
+
+
+def waitNodeNearTarget(node, pos, distance=0.05):
+    """ Wait until the given node is near a specific world coordinate
+    with a given distance threshold (e.g., controller near starting position).
+    For more complex behavior, consider using the vizproximity module.
+
+    Args:
+        node: The Vizard node or sensor object to track
+        pos (3-tuple): 3D coordinate in world space
+        distance (float): Minimal distance to trigger position
+    """
+    d = 99999
+    while d >= distance:
+        p = node.getPosition(viz.ABS_GLOBAL)
+        d = vizmat.Distance(p, pos)
+        if d < distance:
+            return
+        yield viztask.waitTime(0.008)
+
+
+def waitObserverPosition(pos, radius=0.2):
+    """ Wait until the observer (MainView) is above a certain floor position
+    within a given radius, e.g. if participants should walk to a specific
+    location in the virtual environment. 
+    For more complex behavior, consider using the vizproximity module.
+
+    Args:
+        pos (2-tuple): X-Z coordinate in world space (if a 3-tuple is given, 
+            the Y value is ignored)
+        radius (float): Minimal distance to trigger position
+    """
+    d = 99999
+    if len(pos) == 2:
+        pos = [pos[0], 0, pos[2]]
+    while d >= radius:
+        p = viz.MainView.getPosition(viz.ABS_GLOBAL)
+        d = vizmat.Distance([p[0], 0, p[2]], 
+                            [pos[0], 0, pos[2]])
+        if d < radius:
+            return
+        yield viztask.waitTime(0.008)
+
