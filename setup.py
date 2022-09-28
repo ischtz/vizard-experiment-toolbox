@@ -5,7 +5,7 @@ with open('README.md', 'r') as rf:
 
 setuptools.setup(
     name='vexptoolbox',
-    version='0.1.1',
+    version='0.1.2',
     description='Toolbox for Behavioral Experiments using Vizard',
     long_description=readme,
     long_description_content_type='text/markdown',
