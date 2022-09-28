@@ -420,7 +420,7 @@ class SampleRecorder(object):
         while d >= radius:
             p = viz.MainView.getPosition(viz.ABS_GLOBAL)
             d = vizmat.Distance([p[0], 0, p[2]], 
-                                [pos[0], 0, p[2]])
+                                [pos[0], 0, pos[2]])
             if d < radius:
                 return
             yield viztask.waitTime(0.008)
