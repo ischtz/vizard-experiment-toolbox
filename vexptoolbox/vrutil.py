@@ -420,6 +420,25 @@ def waitNodeNearTarget(node, pos, distance=0.05):
         yield viztask.waitTime(0.008)
 
 
+def waitNodeNotNearTarget(node, pos, distance=0.05):
+    """ Wait until node is not (or no longer) near a specific world coordinate
+    with a given distance threshold (e.g., controller moved away from start position).
+    For more complex behavior, consider using the vizproximity module.
+
+    Args:
+        node: The Vizard node or sensor object to track
+        pos (3-tuple): 3D coordinate in world space
+        distance (float): Minimal distance to trigger position
+    """
+    d = 0
+    while d <= distance:
+        p = node.getPosition(viz.ABS_GLOBAL)
+        d = vizmat.Distance(p, pos)
+        if d > distance:
+            return
+        yield viztask.waitTime(0.008)
+
+
 def waitObserverPosition(pos, radius=0.2):
     """ Wait until the observer (MainView) is above a certain floor position
     within a given radius, e.g. if participants should walk to a specific
